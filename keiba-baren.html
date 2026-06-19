@@ -642,14 +642,12 @@ function renderResult(){
   const totalBets=state.votes.reduce((s,v)=>s+v.combos.length,0);
   const pot=totalBets*unit;
 
-  // 的中者
-  const winners=[];
-  state.votes.forEach(v=>{
-    const hit=v.combos.some(c=>isHit(c));
-    if(hit)winners.push(v);
-  });
-  const payoutPer = winners.length>0 ? Math.floor(pot/winners.length) : 0;
-  const odds = winners.length>0 ? (payoutPer/unit) : 0;
+  // 的中点数を集計し、的中点数に応じて配当を配分
+  const hitCounts = state.votes.map(v=>v.combos.filter(c=>isHit(c)).length);
+  const totalHits = hitCounts.reduce((s,n)=>s+n,0);
+  const payoutPerHit = totalHits>0 ? Math.floor(pot/totalHits) : 0;
+  const odds = totalHits>0 ? (payoutPerHit/unit) : 0;
+  const winners = state.votes.filter((v,i)=>hitCounts[i]>0);
 
   const labelArgs = state.betType==='wakuren'
     ? [horseWaku(resultFirst()),horseWaku(resultSecond())]
@@ -667,35 +665,37 @@ function renderResult(){
     <div class="total-line"><span>参加人数</span><span>${state.votes.length}人</span></div>
     <div class="total-line"><span>総投票点数</span><span>${totalBets}点</span></div>
     <div class="total-line"><span>総額（プール）</span><span>${pot.toLocaleString()} pt</span></div>
-    <div class="total-line"><span>的中者</span><span>${winners.length}人</span></div>
-    <div class="total-line big"><span>1人あたり配当</span><span>${payoutPer.toLocaleString()} pt</span></div>
+    <div class="total-line"><span>的中者</span><span>${winners.length}人 / ${totalHits}点</span></div>
+    <div class="total-line big"><span>1点あたり配当</span><span>${payoutPerHit.toLocaleString()} pt</span></div>
     <div class="muted" style="text-align:right">（配当率 約${odds.toFixed(1)}倍）</div>
   </div>`;
 
   // 的中者リスト
   if(winners.length>0){
     html+=`<div class="card"><h2>🎉 的中者</h2>`;
-    winners.forEach(v=>{
+    state.votes.forEach((v,i)=>{
+      if(hitCounts[i]===0)return;
       const stake=v.combos.length*unit;
-      const net=payoutPer-stake;
+      const payout=hitCounts[i]*payoutPerHit;
+      const net=payout-stake;
       html+=`<div class="winner-row">
-        <span class="nm">${escapeHtml(v.name)}</span>
-        <span>配当 ${payoutPer.toLocaleString()}pt
+        <span class="nm">${escapeHtml(v.name)} <span class="muted">(${hitCounts[i]}点的中)</span></span>
+        <span>配当 ${payout.toLocaleString()}pt
           <span class="${net>=0?'plus':'minus'}">(${net>=0?'+':''}${net.toLocaleString()})</span>
         </span>
       </div>`;
     });
-    html+=`<div class="hint">配当 = 総額を的中者で山分け。括弧内は賭け金を差し引いた収支です。</div></div>`;
+    html+=`<div class="hint">配当 = 総額を的中点数で配分（的中点数 × 1点あたり配当）。括弧内は賭け金を差し引いた収支です。</div></div>`;
   }else{
     html+=`<div class="card"><div class="empty">的中者はいませんでした 😢<br>総額 ${pot.toLocaleString()}pt はキャリーオーバー or 親の総取り。</div></div>`;
   }
 
   // 全員収支
   html+=`<div class="card"><h2>📊 全員の収支</h2>`;
-  state.votes.forEach(v=>{
+  state.votes.forEach((v,i)=>{
     const stake=v.combos.length*unit;
-    const isWin=winners.includes(v);
-    const net=isWin?(payoutPer-stake):(-stake);
+    const payout=hitCounts[i]*payoutPerHit;
+    const net=payout-stake;
     html+=`<div class="total-line"><span>${escapeHtml(v.name)} <span class="muted">(${v.combos.length}点)</span></span>
       <span class="${net>=0?'plus':'minus'}">${net>=0?'+':''}${net.toLocaleString()} pt</span></div>`;
   });
