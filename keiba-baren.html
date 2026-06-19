@@ -290,10 +290,6 @@ function setResultAt(pos,horseId){
   o[pos-1]=horseId;
   return o;
 }
-function comboKey(c){
-  if(state.betType==='umatan') return c.join('-');
-  return [c[0],c[1]].sort((x,y)=>x-y).join('-');
-}
 function comboLabel(c){
   if(state.betType==='umatan'){
     const[posA,posB]=umatanPositions();
@@ -547,16 +543,14 @@ function addComboRow(){
 $('addCombo').addEventListener('click',()=>addComboRow());
 
 function readCombos(){
-  const combos=[]; const seen=new Set(); let err=null;
+  const combos=[]; let err=null;
   const dupMsg = state.betType==='wakuren'?'同じ枠どうしは選べません':'同じ馬どうしは選べません';
   $('comboArea').querySelectorAll('.combo-row').forEach(r=>{
     const a=r.querySelector('.ca').value, b=r.querySelector('.cb').value;
     if(a===''&&b==='')return;
     if(a===''||b===''){err='未選択の項目がある組があります';return;}
     if(a===b){err=dupMsg;return;}
-    const combo=[+a,+b], key=comboKey(combo);
-    if(seen.has(key)){err='同じ組み合わせが重複しています';return;}
-    seen.add(key); combos.push(combo);
+    combos.push([+a,+b]);
   });
   return {combos,err};
 }
