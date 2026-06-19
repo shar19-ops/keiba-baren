@@ -205,7 +205,7 @@
       <label>名前</label>
       <input type="text" id="voterName" placeholder="投票する人の名前" autocomplete="off">
       <div style="height:12px"></div>
-      <label id="comboLabel">馬連（最大6点）</label>
+      <label id="comboLabel">馬連（4〜6点）</label>
       <div id="comboArea"></div>
       <button class="btn btn-ghost btn-sm" id="addCombo" style="margin-top:4px">＋ 組を追加</button>
       <div class="total-line big"><span>合計賭け金</span><span id="voteTotal">0 pt</span></div>
@@ -246,6 +246,7 @@
 const LS_URL_KEY = 'baren_api_url';
 const LS_CACHE_KEY = 'baren_last_state_v2';
 const MAX_COMBO = 6;
+const MIN_COMBO = 4;
 const UNIT_STAKE = 500; // 1点あたりの賭け金（固定）
 const POLL_MS = 5000;
 const BET_TYPE_LABELS = {umaren:'馬連', umatan:'馬単', wakuren:'枠連'};
@@ -516,12 +517,12 @@ function renderComboArea(){
     return;
   }
   $('addCombo').style.display='';
-  if(area.children.length===0){ addComboRow(); }
+  if(area.children.length===0){ for(let i=0;i<MIN_COMBO;i++) addComboRow(); }
   updateVoteTotal();
 }
 function addComboRow(){
   const rows=$('comboArea').querySelectorAll('.combo-row');
-  if(rows.length>=MAX_COMBO){toast(`${betTypeLabel()}は最大6点までです`);return;}
+  if(rows.length>=MAX_COMBO){toast(`${betTypeLabel()}は最大${MAX_COMBO}点までです`);return;}
   const div=document.createElement('div');
   div.className='combo-row';
   if(state.betType==='umatan'){
@@ -568,12 +569,12 @@ $('submitVote').addEventListener('click',async ()=>{
   if(!name){toast('名前を入力してください');return;}
   const {combos,err}=readCombos();
   if(err){toast(err);return;}
-  if(combos.length===0){toast(`${betTypeLabel()}を1点以上選んでください`);return;}
+  if(combos.length<MIN_COMBO){toast(`${betTypeLabel()}を${MIN_COMBO}点以上選んでください`);return;}
   const existed=state.votes.some(v=>v.name===name);
   const ok=await sendAction('submitVote',{name,combos});
   if(ok){
     $('voterName').value='';
-    $('comboArea').innerHTML=''; addComboRow();
+    $('comboArea').innerHTML=''; for(let i=0;i<MIN_COMBO;i++) addComboRow();
     toast(existed?'投票を更新しました':'投票しました');
     window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
   }
@@ -715,7 +716,7 @@ function renderBetTypeUI(){
     inp.checked = inp.value===state.betType;
     inp.closest('label').classList.toggle('checked', inp.checked);
   });
-  $('comboLabel').textContent = `${betTypeLabel()}（最大6点）`;
+  $('comboLabel').textContent = `${betTypeLabel()}（${MIN_COMBO}〜${MAX_COMBO}点）`;
   const hints={
     umaren:'馬連は1着・2着の組み合わせ（順不同）が的中です。',
     umatan:'馬単は指定した着順どうしの組み合わせ（順序通り）が的中です。',
