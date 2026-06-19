@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f3d2e">
+<title>馬券投票・集計</title>
+<style>
+  :root{
+    --green:#0f3d2e; --green2:#155c45; --accent:#f5b301; --accent2:#e29400;
+    --bg:#f3f5f4; --card:#ffffff; --line:#dde3e0; --txt:#1b2420; --sub:#6b7771;
+    --danger:#d64545; --ok:#1f9d55; --gold:#fff7e0;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    background:var(--bg); color:var(--txt); line-height:1.5;
+    padding-bottom:80px;
+  }
+  header{
+    background:linear-gradient(135deg,var(--green),var(--green2));
+    color:#fff; padding:14px 16px; position:sticky; top:0; z-index:20;
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+  }
+  header h1{margin:0;font-size:18px;display:flex;align-items:center;gap:8px;}
+  header .race-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:2px;}
+  header .race{font-size:13px;opacity:.85;}
+  .sync-status{font-size:11px;white-space:nowrap;font-weight:600;}
+  .sync-status.ok{color:#bfe8d3;}
+  .sync-status.bad{color:#ffd0d0;}
+  .tabs{
+    display:flex; background:var(--green2); position:sticky; top:0; z-index:19;
+  }
+  .tab{
+    flex:1; text-align:center; color:#cfe3da; padding:12px 4px; font-size:13px;
+    font-weight:600; border:none; background:none; cursor:pointer; border-bottom:3px solid transparent;
+  }
+  .tab.active{color:#fff; border-bottom-color:var(--accent);}
+  main{padding:14px; max-width:560px; margin:0 auto;}
+  .view{display:none;} .view.active{display:block;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04);
+  }
+  .card h2{margin:0 0 12px; font-size:15px; color:var(--green); display:flex;align-items:center;gap:6px;}
+  label{font-size:12px; color:var(--sub); font-weight:600; display:block; margin-bottom:4px;}
+  input[type=text],input[type=number],select{
+    width:100%; padding:11px 12px; font-size:16px; border:1px solid var(--line);
+    border-radius:10px; background:#fff; color:var(--txt); appearance:none;
+  }
+  input:focus,select:focus{outline:none;border-color:var(--green2);box-shadow:0 0 0 3px rgba(21,92,69,.12);}
+  .row{display:flex; gap:8px;}
+  .row > *{flex:1;}
+  .btn{
+    border:none; border-radius:10px; padding:12px 14px; font-size:15px; font-weight:700;
+    cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn-primary{background:var(--accent); color:#3a2c00;}
+  .btn-primary:active{background:var(--accent2);}
+  .btn-green{background:var(--green2); color:#fff;}
+  .btn-ghost{background:#eef2f0; color:var(--green);}
+  .btn-danger{background:#fde8e8; color:var(--danger);}
+  .btn-block{width:100%;}
+  .btn-sm{padding:7px 10px; font-size:13px;}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; background:#eef2f0; color:var(--green);
+    border-radius:20px; padding:6px 12px; font-size:14px; font-weight:600; margin:0 6px 6px 0;
+  }
+  .chip button{background:none;border:none;color:var(--sub);font-size:16px;cursor:pointer;padding:0;line-height:1;}
+  .horse-num{
+    display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;
+    background:var(--green);color:#fff;border-radius:6px;font-size:12px;font-weight:700;padding:0 5px;
+  }
+  .muted{color:var(--sub); font-size:13px;}
+  .fixed-stake{display:flex;align-items:center;gap:10px;}
+  .horse-listbox{margin-top:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .horse-li{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:#fff;}
+  .horse-li:last-child{border-bottom:none;}
+  .horse-li:nth-child(even){background:#f8faf9;}
+  .horse-nm{flex:1;font-size:15px;font-weight:600;}
+  .horse-del{flex:0;background:#fde8e8;color:var(--danger);border:none;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer;}
+  .horse-waku{flex:0 0 56px;width:56px;padding:6px 4px;font-size:13px;text-align:center;border:1px solid var(--line);border-radius:8px;}
+  .waku-badge{display:inline-block;background:var(--accent);color:#3a2c00;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:4px;}
+  .segmented{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .segmented label{flex:1;text-align:center;padding:10px 6px;font-size:13px;font-weight:700;color:var(--sub);background:#fff;cursor:pointer;margin:0;border-right:1px solid var(--line);}
+  .segmented label:last-child{border-right:none;}
+  .segmented input{display:none;}
+  .segmented input:checked + span{color:#fff;}
+  .segmented label.checked{background:var(--green2);color:#fff;}
+  .combo-slot{flex:1;display:flex;flex-direction:column;gap:2px;}
+  .slot-label{font-size:11px;color:var(--sub);font-weight:700;padding-left:2px;}
+  .lock-card{text-align:center;padding:32px 16px;}
+  .lock-card .icon{font-size:36px;margin-bottom:8px;}
+  .lock-card input{text-align:center;letter-spacing:2px;}
+  .combo-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+  .combo-row select{flex:1;}
+  .combo-row .x{color:var(--sub);font-weight:700;flex:0;}
+  .combo-row .del{flex:0;background:#fde8e8;color:var(--danger);border:none;border-radius:8px;width:38px;height:42px;font-size:18px;cursor:pointer;}
+  .vote-item{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;}
+  .vote-item .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .vote-item .name{font-weight:700;font-size:15px;}
+  .bet-pair{display:inline-block;background:#eef2f0;border-radius:8px;padding:3px 9px;margin:0 5px 5px 0;font-size:13px;font-weight:600;}
+  .bet-pair.hit{background:var(--gold);border:1px solid var(--accent);color:#7a5a00;}
+  .empty{text-align:center;color:var(--sub);padding:24px 8px;font-size:14px;}
+  .total-line{display:flex;justify-content:space-between;font-size:14px;padding:4px 0;}
+  .total-line.big{font-size:17px;font-weight:800;color:var(--green);border-top:1px dashed var(--line);margin-top:6px;padding-top:10px;}
+  .result-pick{display:flex;gap:10px;}
+  .result-pick > div{flex:1;}
+  .winner-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:10px;margin-bottom:8px;background:var(--gold);border:1px solid var(--accent);}
+  .winner-row .nm{font-weight:700;}
+  .plus{color:var(--ok);font-weight:800;}
+  .minus{color:var(--danger);font-weight:700;}
+  .pill{display:inline-block;background:var(--green);color:#fff;border-radius:20px;padding:8px 16px;font-weight:800;font-size:18px;}
+  .danger-zone{margin-top:8px;}
+  .hint{font-size:12px;color:var(--sub);margin-top:6px;}
+  .badge{font-size:11px;background:#eef2f0;color:var(--sub);border-radius:6px;padding:2px 7px;font-weight:700;}
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;
+    padding:10px 18px;border-radius:24px;font-size:14px;z-index:100;opacity:0;transition:.25s;pointer-events:none;
+  }
+  .toast.show{opacity:.95;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🐎 馬券 投票・集計</h1>
+  <div class="race-row">
+    <div class="race" id="raceLabel">レース未設定</div>
+    <div class="sync-status bad" id="apiStatus">未接続</div>
+  </div>
+</header>
+<div class="tabs">
+  <button class="tab active" data-view="vote">投票</button>
+  <button class="tab" data-view="tally">集計</button>
+  <button class="tab" data-view="setup">設定</button>
+</div>
+
+<main>
+  <!-- ===== SETUP ===== -->
+  <section class="view" id="view-setup">
+    <div class="card lock-card" id="setupLock">
+      <div class="icon">🔒</div>
+      <h2 style="justify-content:center">設定はパスワードで保護されています</h2>
+      <input type="password" id="setupPassword" placeholder="パスワード" autocomplete="off" style="margin:10px 0">
+      <button class="btn btn-primary btn-block" id="unlockSetup">解除する</button>
+      <div class="hint">幹事から共有されたパスワードを入力してください。</div>
+    </div>
+
+    <div id="setupContent" style="display:none">
+      <div class="card">
+        <h2>🔗 共有設定</h2>
+        <label>Google Apps Script の公開URL</label>
+        <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+        <button class="btn btn-green btn-block" id="saveApiUrl" style="margin-top:10px">保存して接続</button>
+        <div class="hint">幹事が用意したスプレッドシートのURLを、参加者全員がここに貼り付けてください（最初の1回だけでOK）。同じURLを入れた全員のデータが共有されます。</div>
+      </div>
+
+      <div class="card">
+        <h2>📋 レース設定</h2>
+        <label>レース名（任意）</label>
+        <input type="text" id="raceName" placeholder="例：第3レース 仲間内ダービー">
+        <div style="height:12px"></div>
+        <label>1点あたりの賭け金</label>
+        <div class="fixed-stake"><span class="pill">500 pt</span><span class="muted">／1点（固定）</span></div>
+      </div>
+
+      <div class="card">
+        <h2>🎯 投票方式</h2>
+        <div class="segmented" id="betTypeSegmented">
+          <label><input type="radio" name="betType" value="umaren"><span>馬連</span></label>
+          <label><input type="radio" name="betType" value="umatan"><span>馬単</span></label>
+          <label><input type="radio" name="betType" value="wakuren"><span>枠連</span></label>
+        </div>
+        <div class="hint">変更すると現在の投票・結果はリセットされます。枠連を使う場合は下で各馬に枠番を設定してください。</div>
+      </div>
+
+      <div class="card">
+        <h2>🐴 出走馬を入力 <span class="badge" id="horseCount">0頭</span></h2>
+        <div class="row">
+          <input type="text" id="horseInput" placeholder="馬の名前を入力" autocomplete="off">
+          <input type="number" id="horseWakuInput" placeholder="枠" min="1" max="8" style="flex:0 0 56px">
+          <button class="btn btn-green" id="addHorse" style="flex:0 0 70px">追加</button>
+        </div>
+        <div class="hint">名前を入れて追加。枠番は任意（後から各馬の欄で変更できます）。番号は自動で振られ、一覧に即反映されます。</div>
+        <div class="horse-listbox" id="horseList"></div>
+      </div>
+
+      <div class="card danger-zone">
+        <button class="btn btn-danger btn-block" id="resetAll">全データをリセット</button>
+        <div class="hint">出走馬・投票・結果をすべて消します。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== VOTE ===== -->
+  <section class="view active" id="view-vote">
+    <div class="card">
+      <h2>🐴 出走馬一覧 <span class="badge" id="voteHorseCount">0頭</span></h2>
+      <div id="voteHorseList"></div>
+    </div>
+    <div class="card">
+      <h2>✍️ 投票する</h2>
+      <label>名前</label>
+      <input type="text" id="voterName" placeholder="投票する人の名前" autocomplete="off">
+      <div style="height:12px"></div>
+      <label id="comboLabel">馬連（最大6点）</label>
+      <div id="comboArea"></div>
+      <button class="btn btn-ghost btn-sm" id="addCombo" style="margin-top:4px">＋ 組を追加</button>
+      <div class="total-line big"><span>合計賭け金</span><span id="voteTotal">0 pt</span></div>
+      <button class="btn btn-primary btn-block" id="submitVote" style="margin-top:12px">この内容で投票</button>
+      <div class="hint">同じ人で投票し直すと上書きされます。</div>
+    </div>
+
+    <div class="card">
+      <h2>🧾 投票一覧 <span class="badge" id="voteCount">0人</span></h2>
+      <div id="voteList"></div>
+    </div>
+  </section>
+
+  <!-- ===== TALLY ===== -->
+  <section class="view" id="view-tally">
+    <div class="card">
+      <h2>🏁 結果を入力</h2>
+      <div class="result-pick">
+        <div>
+          <label>1着</label>
+          <select id="firstPlace"></select>
+        </div>
+        <div>
+          <label>2着</label>
+          <select id="secondPlace"></select>
+        </div>
+      </div>
+      <button class="btn btn-green btn-block" id="calcBtn" style="margin-top:12px">集計する</button>
+      <div class="hint" id="tallyHint">馬連は1着・2着の組み合わせ（順不同）が的中です。</div>
+    </div>
+    <div id="resultArea"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LS_URL_KEY = 'baren_api_url';
+const LS_CACHE_KEY = 'baren_last_state_v2';
+const MAX_COMBO = 6;
+const UNIT_STAKE = 500; // 1点あたりの賭け金（固定）
+const POLL_MS = 5000;
+const SETUP_PASSWORD = 'golf';
+const LS_UNLOCK_KEY = 'baren_setup_unlocked';
+const BET_TYPE_LABELS = {umaren:'馬連', umatan:'馬単', wakuren:'枠連'};
+
+let apiUrl = localStorage.getItem(LS_URL_KEY) || '';
+let state = { raceName:'', horses:[], votes:[], result:{first:null,second:null}, betType:'umaren' };
+let pollTimer = null;
+let lastBetType = null;
+
+/* ---------- helpers ---------- */
+function $(id){return document.getElementById(id);}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function horseDisplayNo(id){const i=state.horses.findIndex(h=>h.id===id);return i>=0?i+1:'?';}
+function horseNameById(id){const h=state.horses.find(h=>h.id===id);return h?h.name:'?';}
+function horseWaku(id){const h=state.horses.find(x=>x.id===id);return (h&&h.waku!=null)?Number(h.waku):null;}
+function betTypeLabel(){return BET_TYPE_LABELS[state.betType]||'馬連';}
+function wakuList(){
+  const map={};
+  state.horses.forEach(h=>{ if(h.waku!=null){ (map[h.waku]=map[h.waku]||[]).push(h.name); } });
+  return Object.keys(map).map(Number).sort((a,b)=>a-b).map(w=>({waku:w,horses:map[w]}));
+}
+function comboKey(a,b){
+  if(state.betType==='umatan') return `${a}-${b}`;
+  return [a,b].sort((x,y)=>x-y).join('-');
+}
+function comboLabel(a,b){
+  if(state.betType==='umatan') return `${horseDisplayNo(a)}→${horseDisplayNo(b)}`;
+  if(state.betType==='wakuren'){ const s=[a,b].sort((x,y)=>x-y); return `${s[0]}-${s[1]}`; }
+  const s=[horseDisplayNo(a),horseDisplayNo(b)].sort((x,y)=>x-y);
+  return `${s[0]}-${s[1]}`;
+}
+
+/* ---------- local cache (instant paint on reopen) ---------- */
+function loadCache(){
+  try{ const s=JSON.parse(localStorage.getItem(LS_CACHE_KEY)); if(s) state=Object.assign(state,s); }catch(e){}
+}
+function saveCache(){ localStorage.setItem(LS_CACHE_KEY, JSON.stringify(state)); }
+
+/* ---------- API (Google Apps Script) ---------- */
+function setSyncStatus(text,ok){
+  const el=$('apiStatus'); if(!el)return;
+  el.textContent=text; el.classList.remove('ok','bad'); el.classList.add(ok?'ok':'bad');
+}
+async function apiGet(){
+  const res=await fetch(apiUrl+(apiUrl.includes('?')?'&':'?')+'action=state');
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  return res.json();
+}
+async function apiPost(action,payload){
+  const res=await fetch(apiUrl,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(Object.assign({action},payload||{}))
+  });
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  return res.json();
+}
+function applyState(s){
+  state={
+    raceName:s.raceName||'',
+    horses:Array.isArray(s.horses)?s.horses:[],
+    votes:Array.isArray(s.votes)?s.votes:[],
+    result:s.result||{first:null,second:null},
+    betType:s.betType||'umaren'
+  };
+  saveCache();
+  renderAll();
+}
+async function refresh(showError){
+  if(!apiUrl){setSyncStatus('未接続',false);return;}
+  try{
+    const s=await apiGet();
+    applyState(s);
+    setSyncStatus('同期済み',true);
+  }catch(e){
+    setSyncStatus('接続エラー',false);
+    if(showError)toast('サーバーに接続できません');
+  }
+}
+async function sendAction(action,payload,okMsg){
+  if(!apiUrl){toast('先に「設定」で共有先URLを登録してください');return false;}
+  try{
+    setSyncStatus('送信中…',true);
+    const s=await apiPost(action,payload);
+    applyState(s);
+    setSyncStatus('同期済み',true);
+    if(okMsg)toast(okMsg);
+    return true;
+  }catch(e){
+    setSyncStatus('送信エラー',false);
+    toast('送信に失敗しました。通信状況を確認してください');
+    return false;
+  }
+}
+function startPolling(){
+  stopPolling();
+  if(!apiUrl)return;
+  pollTimer=setInterval(()=>refresh(false),POLL_MS);
+}
+function stopPolling(){ if(pollTimer){clearInterval(pollTimer);pollTimer=null;} }
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){stopPolling();}else{refresh(false);startPolling();}
+});
+window.addEventListener('focus',()=>{ if(apiUrl)refresh(false); });
+
+/* ---------- 設定タブ：パスワード保護 ---------- */
+function isSetupUnlocked(){ return sessionStorage.getItem(LS_UNLOCK_KEY)==='1'; }
+function showSetupContent(unlocked){
+  $('setupLock').style.display = unlocked?'none':'';
+  $('setupContent').style.display = unlocked?'':'none';
+}
+function tryUnlock(){
+  const v=$('setupPassword').value;
+  if(v===SETUP_PASSWORD){
+    sessionStorage.setItem(LS_UNLOCK_KEY,'1');
+    $('setupPassword').value='';
+    showSetupContent(true);
+    toast('設定を解除しました');
+  }else{
+    toast('パスワードが違います');
+  }
+}
+$('unlockSetup').addEventListener('click',tryUnlock);
+$('setupPassword').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); tryUnlock(); } });
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    $('view-'+t.dataset.view).classList.add('active');
+    if(t.dataset.view==='vote'){renderVoteHorseList();renderComboArea();renderVoteList();}
+    if(t.dataset.view==='tally'){renderResultSelectsSafe();}
+    if(t.dataset.view==='setup'){showSetupContent(isSetupUnlocked());}
+    if(apiUrl)refresh(false);
+    window.scrollTo(0,0);
+  });
+});
+
+/* ---------- SETUP: 共有先URL ---------- */
+$('saveApiUrl').addEventListener('click',async ()=>{
+  const v=$('apiUrlInput').value.trim();
+  if(!v){toast('URLを入力してください');return;}
+  apiUrl=v; localStorage.setItem(LS_URL_KEY,apiUrl);
+  toast('接続設定を保存しました');
+  await refresh(true);
+  startPolling();
+});
+
+/* ---------- SETUP: レース名 ---------- */
+$('raceName').addEventListener('input',e=>{ $('raceLabel').textContent=e.target.value||'レース未設定'; });
+$('raceName').addEventListener('change',async e=>{ await sendAction('setRaceName',{raceName:e.target.value}); });
+
+function renderRaceName(){
+  const el=$('raceName');
+  if(document.activeElement!==el) el.value=state.raceName;
+  $('raceLabel').textContent=state.raceName||'レース未設定';
+}
+
+$('addHorse').addEventListener('click',addHorse);
+$('horseInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addHorse();}});
+async function addHorse(){
+  const v=$('horseInput').value.trim();
+  if(!v){toast('馬名を入力してください');return;}
+  const wv=$('horseWakuInput').value;
+  const waku=wv===''?null:+wv;
+  $('horseInput').value=''; $('horseWakuInput').value='';
+  const ok=await sendAction('addHorse',{name:v,waku});
+  if(ok)$('horseInput').focus();
+}
+function renderHorseList(){
+  const el=$('horseList');
+  $('horseCount').textContent=state.horses.length+'頭';
+  if(el.contains(document.activeElement))return;
+  if(state.horses.length===0){el.innerHTML='<div class="empty" style="padding:16px">まだ出走馬がいません</div>';renderVoteHorseList();return;}
+  el.innerHTML = state.horses.map((h,i)=>
+    `<div class="horse-li"><span class="horse-num">${i+1}</span>
+      <span class="horse-nm">${escapeHtml(h.name)}</span>
+      <input type="number" class="horse-waku" data-id="${h.id}" value="${h.waku!=null?h.waku:''}" min="1" max="8" placeholder="枠">
+      <button class="horse-del" data-id="${h.id}">✕</button></div>`
+  ).join('');
+  el.querySelectorAll('.horse-del').forEach(b=>b.addEventListener('click',()=>removeHorse(+b.dataset.id)));
+  el.querySelectorAll('.horse-waku').forEach(inp=>inp.addEventListener('change',async ()=>{
+    const wv=inp.value;
+    await sendAction('setHorseWaku',{id:+inp.dataset.id,waku:wv===''?null:+wv});
+  }));
+  renderVoteHorseList();
+}
+function renderVoteHorseList(){
+  const el=$('voteHorseList'); if(!el)return;
+  $('voteHorseCount').textContent=state.horses.length+'頭';
+  if(state.horses.length===0){
+    el.innerHTML='<div class="muted">「設定」タブで出走馬を追加してください。</div>';return;
+  }
+  el.innerHTML = state.horses.map((h,i)=>
+    `<span class="chip"><span class="horse-num">${i+1}</span>${escapeHtml(h.name)}${h.waku!=null?`<span class="waku-badge">${h.waku}枠</span>`:''}</span>`
+  ).join('');
+}
+async function removeHorse(id){
+  const h=state.horses.find(x=>x.id===id);
+  if(!confirm(`「${h?h.name:''}」を削除しますか？\n（この馬を含む投票も削除されます）`))return;
+  await sendAction('removeHorse',{id});
+}
+
+$('resetAll').addEventListener('click',async ()=>{
+  if(!confirm('全データを削除して初期化します。よろしいですか？'))return;
+  await sendAction('reset',{},'リセットしました');
+});
+
+/* ---------- VOTE ---------- */
+function horseOptions(selectedId){
+  let o='<option value="">— 馬を選択 —</option>';
+  state.horses.forEach((h,i)=>{
+    const wk=h.waku!=null?`（${h.waku}枠）`:'';
+    o+=`<option value="${h.id}"${String(selectedId)===String(h.id)?' selected':''}>${i+1}. ${escapeHtml(h.name)}${wk}</option>`;
+  });
+  return o;
+}
+function wakuOptions(selectedWaku){
+  let o='<option value="">— 枠を選択 —</option>';
+  wakuList().forEach(w=>{
+    o+=`<option value="${w.waku}"${String(selectedWaku)===String(w.waku)?' selected':''}>${w.waku}枠（${w.horses.map(escapeHtml).join('・')}）</option>`;
+  });
+  return o;
+}
+function renderComboArea(){
+  const area=$('comboArea');
+  if(state.betType==='wakuren'){
+    if(wakuList().length<2){
+      area.innerHTML='<div class="muted">先に「設定」で2つ以上の枠番を設定してください。</div>';
+      $('addCombo').style.display='none';
+      return;
+    }
+  }else if(state.horses.length<2){
+    area.innerHTML='<div class="muted">先に「設定」で出走馬を2頭以上入力してください。</div>';
+    $('addCombo').style.display='none';
+    return;
+  }
+  $('addCombo').style.display='';
+  if(area.children.length===0){ addComboRow(); }
+  updateVoteTotal();
+}
+function addComboRow(a=null,b=null){
+  const rows=$('comboArea').querySelectorAll('.combo-row');
+  if(rows.length>=MAX_COMBO){toast(`${betTypeLabel()}は最大6点までです`);return;}
+  const isUmatan=state.betType==='umatan';
+  const isWakuren=state.betType==='wakuren';
+  const opts=sel=>isWakuren?wakuOptions(sel):horseOptions(sel);
+  const div=document.createElement('div');
+  div.className='combo-row';
+  div.innerHTML=`<div class="combo-slot">${isUmatan?'<span class="slot-label">1着</span>':''}<select class="ca">${opts(a)}</select></div>
+    <span class="x">${isUmatan?'→':'―'}</span>
+    <div class="combo-slot">${isUmatan?'<span class="slot-label">2着</span>':''}<select class="cb">${opts(b)}</select></div>
+    <button class="del">✕</button>`;
+  div.querySelector('.del').addEventListener('click',()=>{div.remove();updateVoteTotal();});
+  div.querySelectorAll('select').forEach(s=>s.addEventListener('change',updateVoteTotal));
+  $('comboArea').appendChild(div);
+  updateVoteTotal();
+}
+$('addCombo').addEventListener('click',()=>addComboRow());
+
+function readCombos(){
+  const combos=[]; const seen=new Set(); let err=null;
+  const dupMsg = state.betType==='wakuren'?'同じ枠どうしは選べません':'同じ馬どうしは選べません';
+  $('comboArea').querySelectorAll('.combo-row').forEach(r=>{
+    const a=r.querySelector('.ca').value, b=r.querySelector('.cb').value;
+    if(a===''&&b==='')return;
+    if(a===''||b===''){err='未選択の項目がある組があります';return;}
+    if(a===b){err=dupMsg;return;}
+    const ai=+a, bi=+b, key=comboKey(ai,bi);
+    if(seen.has(key)){err='同じ組み合わせが重複しています';return;}
+    seen.add(key); combos.push([ai,bi]);
+  });
+  return {combos,err};
+}
+function updateVoteTotal(){
+  const {combos}=readCombos();
+  $('voteTotal').textContent=(combos.length*UNIT_STAKE).toLocaleString()+' pt';
+}
+$('submitVote').addEventListener('click',async ()=>{
+  const name=$('voterName').value.trim();
+  if(!name){toast('名前を入力してください');return;}
+  const {combos,err}=readCombos();
+  if(err){toast(err);return;}
+  if(combos.length===0){toast(`${betTypeLabel()}を1点以上選んでください`);return;}
+  const existed=state.votes.some(v=>v.name===name);
+  const ok=await sendAction('submitVote',{name,combos});
+  if(ok){
+    $('voterName').value='';
+    $('comboArea').innerHTML=''; addComboRow();
+    toast(existed?'投票を更新しました':'投票しました');
+    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+  }
+});
+
+function renderVoteList(){
+  const el=$('voteList');
+  $('voteCount').textContent=state.votes.length+'人';
+  if(state.votes.length===0){el.innerHTML='<div class="empty">まだ投票がありません</div>';return;}
+  const win = winningKey();
+  el.innerHTML=state.votes.map(v=>{
+    const pairs=v.combos.map(c=>{
+      const hit = win && comboKey(c[0],c[1])===win;
+      return `<span class="bet-pair${hit?' hit':''}">${comboLabel(c[0],c[1])}</span>`;
+    }).join('');
+    const stake=(v.combos.length*UNIT_STAKE).toLocaleString();
+    return `<div class="vote-item">
+      <div class="top"><span class="name">${escapeHtml(v.name)}</span>
+        <span><span class="badge">${v.combos.length}点 / ${stake}pt</span>
+        <button class="btn btn-danger btn-sm" data-name="${escapeHtml(v.name)}" style="margin-left:6px">削除</button></span>
+      </div>
+      <div>${pairs}</div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('[data-name]').forEach(b=>b.addEventListener('click',async ()=>{
+    const name=b.dataset.name;
+    if(!confirm(`${name} の投票を削除しますか？`))return;
+    await sendAction('deleteVote',{name});
+  }));
+}
+
+/* ---------- TALLY ---------- */
+function renderResultSelectsSafe(){
+  ['firstPlace','secondPlace'].forEach(id=>{
+    const el=$(id); if(document.activeElement===el)return;
+    const current = id==='firstPlace'?state.result.first:state.result.second;
+    el.innerHTML=horseOptions(current);
+  });
+}
+$('firstPlace').addEventListener('change',async e=>{
+  const val=e.target.value===''?null:+e.target.value;
+  await sendAction('setResult',{first:val,second:state.result.second});
+});
+$('secondPlace').addEventListener('change',async e=>{
+  const val=e.target.value===''?null:+e.target.value;
+  await sendAction('setResult',{first:state.result.first,second:val});
+});
+
+function winningKey(){
+  const{first,second}=state.result;
+  if(first===null||second===null||first===second)return null;
+  if(state.betType==='wakuren'){
+    const wa=horseWaku(first), wb=horseWaku(second);
+    if(wa===null||wb===null)return null;
+    return comboKey(wa,wb);
+  }
+  return comboKey(first,second);
+}
+
+$('calcBtn').addEventListener('click',()=>{
+  const{first,second}=state.result;
+  if(first===null||second===null){toast('1着・2着を選んでください');return;}
+  if(first===second){toast('1着と2着は別の馬にしてください');return;}
+  if(state.betType==='wakuren'&&(horseWaku(first)===null||horseWaku(second)===null)){
+    toast('1着・2着の馬に枠番が設定されていません');return;
+  }
+  if(state.votes.length===0){toast('投票がありません');return;}
+  renderResult();
+});
+
+function renderResult(){
+  if(state.betType==='wakuren'&&(horseWaku(state.result.first)===null||horseWaku(state.result.second)===null)){
+    $('resultArea').innerHTML='<div class="card"><div class="empty">1着・2着の馬に枠番が設定されていません。「設定」タブで枠番を入力してください。</div></div>';
+    return;
+  }
+  const win=winningKey();
+  const unit=UNIT_STAKE;
+  const totalBets=state.votes.reduce((s,v)=>s+v.combos.length,0);
+  const pot=totalBets*unit;
+
+  // 的中者
+  const winners=[];
+  state.votes.forEach(v=>{
+    const hit=v.combos.some(c=>comboKey(c[0],c[1])===win);
+    if(hit)winners.push(v);
+  });
+  const payoutPer = winners.length>0 ? Math.floor(pot/winners.length) : 0;
+  const odds = winners.length>0 ? (payoutPer/unit) : 0;
+
+  const labelArgs = state.betType==='wakuren'
+    ? [horseWaku(state.result.first),horseWaku(state.result.second)]
+    : [state.result.first,state.result.second];
+
+  let html=`<div class="card">
+    <h2>🏆 的中組み合わせ</h2>
+    <div style="text-align:center;margin:6px 0 12px">
+      <span class="pill">${comboLabel(labelArgs[0],labelArgs[1])}</span>
+      <div class="muted" style="margin-top:8px">
+        ${escapeHtml(horseNameById(state.result.first))} ― ${escapeHtml(horseNameById(state.result.second))}
+      </div>
+    </div>
+    <div class="total-line"><span>参加人数</span><span>${state.votes.length}人</span></div>
+    <div class="total-line"><span>総投票点数</span><span>${totalBets}点</span></div>
+    <div class="total-line"><span>総額（プール）</span><span>${pot.toLocaleString()} pt</span></div>
+    <div class="total-line"><span>的中者</span><span>${winners.length}人</span></div>
+    <div class="total-line big"><span>1人あたり配当</span><span>${payoutPer.toLocaleString()} pt</span></div>
+    <div class="muted" style="text-align:right">（配当率 約${odds.toFixed(1)}倍）</div>
+  </div>`;
+
+  // 的中者リスト
+  if(winners.length>0){
+    html+=`<div class="card"><h2>🎉 的中者</h2>`;
+    winners.forEach(v=>{
+      const stake=v.combos.length*unit;
+      const net=payoutPer-stake;
+      html+=`<div class="winner-row">
+        <span class="nm">${escapeHtml(v.name)}</span>
+        <span>配当 ${payoutPer.toLocaleString()}pt
+          <span class="${net>=0?'plus':'minus'}">(${net>=0?'+':''}${net.toLocaleString()})</span>
+        </span>
+      </div>`;
+    });
+    html+=`<div class="hint">配当 = 総額を的中者で山分け。括弧内は賭け金を差し引いた収支です。</div></div>`;
+  }else{
+    html+=`<div class="card"><div class="empty">的中者はいませんでした 😢<br>総額 ${pot.toLocaleString()}pt はキャリーオーバー or 親の総取り。</div></div>`;
+  }
+
+  // 全員収支
+  html+=`<div class="card"><h2>📊 全員の収支</h2>`;
+  state.votes.forEach(v=>{
+    const stake=v.combos.length*unit;
+    const isWin=winners.includes(v);
+    const net=isWin?(payoutPer-stake):(-stake);
+    html+=`<div class="total-line"><span>${escapeHtml(v.name)} <span class="muted">(${v.combos.length}点)</span></span>
+      <span class="${net>=0?'plus':'minus'}">${net>=0?'+':''}${net.toLocaleString()} pt</span></div>`;
+  });
+  html+=`</div>`;
+
+  $('resultArea').innerHTML=html;
+}
+
+/* ---------- 投票方式 ---------- */
+function renderBetTypeUI(){
+  document.querySelectorAll('#betTypeSegmented input[name="betType"]').forEach(inp=>{
+    inp.checked = inp.value===state.betType;
+    inp.closest('label').classList.toggle('checked', inp.checked);
+  });
+  $('comboLabel').textContent = `${betTypeLabel()}（最大6点）`;
+  const hints={
+    umaren:'馬連は1着・2着の組み合わせ（順不同）が的中です。',
+    umatan:'馬単は1着・2着の組み合わせ（順序通り）が的中です。',
+    wakuren:'枠連は1着・2着の枠番の組み合わせ（順不同）が的中です。'
+  };
+  $('tallyHint').textContent = hints[state.betType]||hints.umaren;
+}
+document.querySelectorAll('#betTypeSegmented input[name="betType"]').forEach(inp=>{
+  inp.addEventListener('change',async ()=>{
+    const newType=inp.value;
+    if(newType===state.betType)return;
+    if(!confirm('投票方式を変更すると、現在の投票・結果はすべてリセットされます。よろしいですか？')){
+      renderBetTypeUI();
+      return;
+    }
+    await sendAction('setBetType',{betType:newType});
+  });
+});
+
+/* ---------- 全体再描画（サーバーから受信した最新状態を反映） ---------- */
+function renderAll(){
+  renderRaceName();
+  renderHorseList();
+  renderBetTypeUI();
+  if(lastBetType!==null && lastBetType!==state.betType){
+    $('comboArea').innerHTML='';
+    renderComboArea();
+    toast(`投票方式が${betTypeLabel()}に変更されました`);
+  }
+  lastBetType=state.betType;
+  renderVoteList();
+  renderResultSelectsSafe();
+}
+
+/* ---------- init ---------- */
+function initUI(){
+  loadCache();
+  $('apiUrlInput').value=apiUrl;
+  showSetupContent(isSetupUnlocked());
+  renderRaceName();
+  renderHorseList();
+  renderBetTypeUI();
+  lastBetType=state.betType;
+  $('comboArea').innerHTML='';
+  renderComboArea();
+  renderVoteList();
+  renderResultSelectsSafe();
+  $('resultArea').innerHTML='';
+  if(apiUrl){ setSyncStatus('読み込み中…',true); refresh(true); startPolling(); }
+  else{ setSyncStatus('未接続',false); }
+}
+initUI();
+</script>
+</body>
+</html>
