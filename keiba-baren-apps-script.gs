@@ -36,8 +36,7 @@ function ensureSheets() {
     meta = ss.insertSheet('Meta');
     meta.appendRow(['key', 'value']);
     meta.appendRow(['raceName', '']);
-    meta.appendRow(['resultFirst', '']);
-    meta.appendRow(['resultSecond', '']);
+    meta.appendRow(['resultOrder', '[]']);
     meta.appendRow(['nextHorseId', '1']);
     meta.appendRow(['betType', 'umaren']);
   }
@@ -82,12 +81,12 @@ function buildState() {
   });
 
   var raceName = getMetaValue(sh.meta, 'raceName') || '';
-  var rf = getMetaValue(sh.meta, 'resultFirst');
-  var rs = getMetaValue(sh.meta, 'resultSecond');
-  var result = {
-    first: (rf === '' || rf === null || rf === undefined) ? null : Number(rf),
-    second: (rs === '' || rs === null || rs === undefined) ? null : Number(rs)
-  };
+  var orderRaw = getMetaValue(sh.meta, 'resultOrder');
+  var order = [];
+  try { order = JSON.parse(orderRaw || '[]'); } catch (e) { order = []; }
+  if (!Array.isArray(order)) order = [];
+  order = order.map(function (v) { return (v === null || v === undefined || v === '') ? null : Number(v); });
+  var result = { order: order };
   var betType = getMetaValue(sh.meta, 'betType') || 'umaren';
 
   return { raceName: raceName, horses: horses, votes: votes, result: result, betType: betType };
@@ -127,19 +126,21 @@ function doPost(e) {
       if (['umaren', 'umatan', 'wakuren'].indexOf(bt) === -1) bt = 'umaren';
       setMetaValue(sh.meta, 'betType', bt);
       clearSheetKeepHeader(sh.votes);
-      setMetaValue(sh.meta, 'resultFirst', '');
-      setMetaValue(sh.meta, 'resultSecond', '');
+      setMetaValue(sh.meta, 'resultOrder', '[]');
     } else if (action === 'removeHorse') {
       var id = Number(body.id);
       var btCur = getMetaValue(sh.meta, 'betType') || 'umaren';
       removeHorseRow(sh.horses, id);
       if (btCur !== 'wakuren') {
-        stripHorseFromVotes(sh.votes, id);
+        stripHorseFromVotes(sh.votes, id, btCur);
       }
-      var rf = getMetaValue(sh.meta, 'resultFirst');
-      var rs = getMetaValue(sh.meta, 'resultSecond');
-      if (Number(rf) === id) setMetaValue(sh.meta, 'resultFirst', '');
-      if (Number(rs) === id) setMetaValue(sh.meta, 'resultSecond', '');
+      var order = [];
+      try { order = JSON.parse(getMetaValue(sh.meta, 'resultOrder') || '[]'); } catch (e) { order = []; }
+      var orderChanged = false;
+      for (var oi = 0; oi < order.length; oi++) {
+        if (order[oi] !== null && order[oi] !== '' && Number(order[oi]) === id) { order[oi] = null; orderChanged = true; }
+      }
+      if (orderChanged) setMetaValue(sh.meta, 'resultOrder', JSON.stringify(order));
     } else if (action === 'submitVote') {
       var vname = String(body.name || '').trim();
       var combos = body.combos || [];
@@ -149,14 +150,15 @@ function doPost(e) {
     } else if (action === 'setRaceName') {
       setMetaValue(sh.meta, 'raceName', String(body.raceName || ''));
     } else if (action === 'setResult') {
-      setMetaValue(sh.meta, 'resultFirst', (body.first === null || body.first === undefined) ? '' : Number(body.first));
-      setMetaValue(sh.meta, 'resultSecond', (body.second === null || body.second === undefined) ? '' : Number(body.second));
+      var ord = Array.isArray(body.order) ? body.order.map(function (v) {
+        return (v === null || v === undefined || v === '') ? null : Number(v);
+      }) : [];
+      setMetaValue(sh.meta, 'resultOrder', JSON.stringify(ord));
     } else if (action === 'reset') {
       clearSheetKeepHeader(sh.horses);
       clearSheetKeepHeader(sh.votes);
       setMetaValue(sh.meta, 'raceName', '');
-      setMetaValue(sh.meta, 'resultFirst', '');
-      setMetaValue(sh.meta, 'resultSecond', '');
+      setMetaValue(sh.meta, 'resultOrder', '[]');
       setMetaValue(sh.meta, 'nextHorseId', '1');
       setMetaValue(sh.meta, 'betType', 'umaren');
     }
@@ -181,12 +183,15 @@ function removeHorseRow(sheet, id) {
   }
 }
 
-function stripHorseFromVotes(votesSheet, id) {
+function stripHorseFromVotes(votesSheet, id, betType) {
   var data = votesSheet.getDataRange().getValues();
   for (var i = data.length - 1; i >= 1; i--) {
     var combos = [];
     try { combos = JSON.parse(data[i][1] || '[]'); } catch (e) { combos = []; }
-    var filtered = combos.filter(function (c) { return c[0] !== id && c[1] !== id; });
+    var filtered = combos.filter(function (c) {
+      if (betType === 'umatan') return Number(c[1]) !== id && Number(c[3]) !== id;
+      return Number(c[0]) !== id && Number(c[1]) !== id;
+    });
     if (filtered.length === 0) {
       votesSheet.deleteRow(i + 1);
     } else if (filtered.length !== combos.length) {

@@ -223,7 +223,7 @@
   <section class="view" id="view-tally">
     <div class="card">
       <h2>🏁 結果を入力</h2>
-      <div class="result-pick">
+      <div class="result-pick" id="resultPickSimple">
         <div>
           <label>1着</label>
           <select id="firstPlace"></select>
@@ -233,6 +233,7 @@
           <select id="secondPlace"></select>
         </div>
       </div>
+      <div id="resultOrderArea" style="display:none"></div>
       <button class="btn btn-green btn-block" id="calcBtn" style="margin-top:12px">集計する</button>
       <div class="hint" id="tallyHint">馬連は1着・2着の組み合わせ（順不同）が的中です。</div>
     </div>
@@ -253,7 +254,7 @@ const LS_UNLOCK_KEY = 'baren_setup_unlocked';
 const BET_TYPE_LABELS = {umaren:'馬連', umatan:'馬単', wakuren:'枠連'};
 
 let apiUrl = localStorage.getItem(LS_URL_KEY) || '';
-let state = { raceName:'', horses:[], votes:[], result:{first:null,second:null}, betType:'umaren' };
+let state = { raceName:'', horses:[], votes:[], result:{order:[]}, betType:'umaren' };
 let pollTimer = null;
 let lastBetType = null;
 
@@ -270,15 +271,50 @@ function wakuList(){
   state.horses.forEach(h=>{ if(h.waku!=null){ (map[h.waku]=map[h.waku]||[]).push(h.name); } });
   return Object.keys(map).map(Number).sort((a,b)=>a-b).map(w=>({waku:w,horses:map[w]}));
 }
-function comboKey(a,b){
-  if(state.betType==='umatan') return `${a}-${b}`;
-  return [a,b].sort((x,y)=>x-y).join('-');
+function resultAt(pos){
+  const o=state.result.order||[];
+  const v=o[pos-1];
+  return (v===undefined||v===null||v==='')?null:Number(v);
 }
-function comboLabel(a,b){
-  if(state.betType==='umatan') return `${horseDisplayNo(a)}→${horseDisplayNo(b)}`;
-  if(state.betType==='wakuren'){ const s=[a,b].sort((x,y)=>x-y); return `${s[0]}-${s[1]}`; }
-  const s=[horseDisplayNo(a),horseDisplayNo(b)].sort((x,y)=>x-y);
+function resultFirst(){return resultAt(1);}
+function resultSecond(){return resultAt(2);}
+function setResultAt(pos,horseId){
+  const o=(state.result.order||[]).slice();
+  while(o.length<pos) o.push(null);
+  o[pos-1]=horseId;
+  return o;
+}
+function comboKey(c){
+  if(state.betType==='umatan') return c.join('-');
+  return [c[0],c[1]].sort((x,y)=>x-y).join('-');
+}
+function comboLabel(c){
+  if(state.betType==='umatan'){
+    const [posA,a,posB,b]=c;
+    return `${posA}着:${horseDisplayNo(a)}→${posB}着:${horseDisplayNo(b)}`;
+  }
+  if(state.betType==='wakuren'){ const s=[c[0],c[1]].sort((x,y)=>x-y); return `${s[0]}-${s[1]}`; }
+  const s=[horseDisplayNo(c[0]),horseDisplayNo(c[1])].sort((x,y)=>x-y);
   return `${s[0]}-${s[1]}`;
+}
+function isHit(c){
+  if(state.betType==='umatan'){
+    const [posA,a,posB,b]=c;
+    if(posA==null||posB==null||a==null||b==null)return false;
+    return resultAt(posA)===Number(a) && resultAt(posB)===Number(b);
+  }
+  const fa=resultFirst(), fb=resultSecond();
+  if(fa===null||fb===null)return false;
+  if(state.betType==='wakuren'){
+    const wa=horseWaku(fa), wb=horseWaku(fb);
+    if(wa===null||wb===null)return false;
+    const s=[wa,wb].sort((x,y)=>x-y);
+    const cs=[c[0],c[1]].sort((x,y)=>x-y);
+    return s[0]===cs[0]&&s[1]===cs[1];
+  }
+  const s=[fa,fb].sort((x,y)=>x-y);
+  const cs=[c[0],c[1]].sort((x,y)=>x-y);
+  return s[0]===cs[0]&&s[1]===cs[1];
 }
 
 /* ---------- local cache (instant paint on reopen) ---------- */
@@ -311,7 +347,7 @@ function applyState(s){
     raceName:s.raceName||'',
     horses:Array.isArray(s.horses)?s.horses:[],
     votes:Array.isArray(s.votes)?s.votes:[],
-    result:s.result||{first:null,second:null},
+    result:{order:(s.result&&Array.isArray(s.result.order))?s.result.order:[]},
     betType:s.betType||'umaren'
   };
   saveCache();
@@ -382,7 +418,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     t.classList.add('active');
     $('view-'+t.dataset.view).classList.add('active');
     if(t.dataset.view==='vote'){renderVoteHorseList();renderComboArea();renderVoteList();}
-    if(t.dataset.view==='tally'){renderResultSelectsSafe();}
+    if(t.dataset.view==='tally'){renderResultUI();}
     if(t.dataset.view==='setup'){showSetupContent(isSetupUnlocked());}
     if(apiUrl)refresh(false);
     window.scrollTo(0,0);
@@ -475,6 +511,14 @@ function wakuOptions(selectedWaku){
   });
   return o;
 }
+function positionOptions(selectedPos){
+  const n=Math.max(state.horses.length,2);
+  let o='';
+  for(let p=1;p<=n;p++){
+    o+=`<option value="${p}"${String(selectedPos)===String(p)?' selected':''}>${p}着</option>`;
+  }
+  return o;
+}
 function renderComboArea(){
   const area=$('comboArea');
   if(state.betType==='wakuren'){
@@ -492,18 +536,24 @@ function renderComboArea(){
   if(area.children.length===0){ addComboRow(); }
   updateVoteTotal();
 }
-function addComboRow(a=null,b=null){
+function addComboRow(){
   const rows=$('comboArea').querySelectorAll('.combo-row');
   if(rows.length>=MAX_COMBO){toast(`${betTypeLabel()}は最大6点までです`);return;}
-  const isUmatan=state.betType==='umatan';
-  const isWakuren=state.betType==='wakuren';
-  const opts=sel=>isWakuren?wakuOptions(sel):horseOptions(sel);
   const div=document.createElement('div');
   div.className='combo-row';
-  div.innerHTML=`<div class="combo-slot">${isUmatan?'<span class="slot-label">1着</span>':''}<select class="ca">${opts(a)}</select></div>
-    <span class="x">${isUmatan?'→':'―'}</span>
-    <div class="combo-slot">${isUmatan?'<span class="slot-label">2着</span>':''}<select class="cb">${opts(b)}</select></div>
-    <button class="del">✕</button>`;
+  if(state.betType==='umatan'){
+    div.innerHTML=`<div class="combo-slot"><select class="pa">${positionOptions(1)}</select><select class="ca">${horseOptions(null)}</select></div>
+      <span class="x">→</span>
+      <div class="combo-slot"><select class="pb">${positionOptions(2)}</select><select class="cb">${horseOptions(null)}</select></div>
+      <button class="del">✕</button>`;
+  }else{
+    const isWakuren=state.betType==='wakuren';
+    const opts=isWakuren?wakuOptions(null):horseOptions(null);
+    div.innerHTML=`<select class="ca">${opts}</select>
+      <span class="x">―</span>
+      <select class="cb">${isWakuren?wakuOptions(null):horseOptions(null)}</select>
+      <button class="del">✕</button>`;
+  }
   div.querySelector('.del').addEventListener('click',()=>{div.remove();updateVoteTotal();});
   div.querySelectorAll('select').forEach(s=>s.addEventListener('change',updateVoteTotal));
   $('comboArea').appendChild(div);
@@ -515,13 +565,25 @@ function readCombos(){
   const combos=[]; const seen=new Set(); let err=null;
   const dupMsg = state.betType==='wakuren'?'同じ枠どうしは選べません':'同じ馬どうしは選べません';
   $('comboArea').querySelectorAll('.combo-row').forEach(r=>{
+    if(state.betType==='umatan'){
+      const pa=r.querySelector('.pa').value, ca=r.querySelector('.ca').value;
+      const pb=r.querySelector('.pb').value, cb=r.querySelector('.cb').value;
+      if(ca===''&&cb==='')return;
+      if(ca===''||cb===''){err='未選択の馬がある組があります';return;}
+      if(pa===pb){err='1着・2着の指定（着順）が同じです。異なる着順を選んでください';return;}
+      if(ca===cb){err='同じ馬を2つの着順に指定することはできません';return;}
+      const combo=[+pa,+ca,+pb,+cb], key=comboKey(combo);
+      if(seen.has(key)){err='同じ組み合わせが重複しています';return;}
+      seen.add(key); combos.push(combo);
+      return;
+    }
     const a=r.querySelector('.ca').value, b=r.querySelector('.cb').value;
     if(a===''&&b==='')return;
     if(a===''||b===''){err='未選択の項目がある組があります';return;}
     if(a===b){err=dupMsg;return;}
-    const ai=+a, bi=+b, key=comboKey(ai,bi);
+    const combo=[+a,+b], key=comboKey(combo);
     if(seen.has(key)){err='同じ組み合わせが重複しています';return;}
-    seen.add(key); combos.push([ai,bi]);
+    seen.add(key); combos.push(combo);
   });
   return {combos,err};
 }
@@ -549,11 +611,10 @@ function renderVoteList(){
   const el=$('voteList');
   $('voteCount').textContent=state.votes.length+'人';
   if(state.votes.length===0){el.innerHTML='<div class="empty">まだ投票がありません</div>';return;}
-  const win = winningKey();
   el.innerHTML=state.votes.map(v=>{
     const pairs=v.combos.map(c=>{
-      const hit = win && comboKey(c[0],c[1])===win;
-      return `<span class="bet-pair${hit?' hit':''}">${comboLabel(c[0],c[1])}</span>`;
+      const hit = isHit(c);
+      return `<span class="bet-pair${hit?' hit':''}">${comboLabel(c)}</span>`;
     }).join('');
     const stake=(v.combos.length*UNIT_STAKE).toLocaleString();
     return `<div class="vote-item">
@@ -572,50 +633,75 @@ function renderVoteList(){
 }
 
 /* ---------- TALLY ---------- */
-function renderResultSelectsSafe(){
-  ['firstPlace','secondPlace'].forEach(id=>{
-    const el=$(id); if(document.activeElement===el)return;
-    const current = id==='firstPlace'?state.result.first:state.result.second;
-    el.innerHTML=horseOptions(current);
-  });
+function renderResultUI(){
+  if(state.betType==='umatan'){
+    $('resultPickSimple').style.display='none';
+    $('resultOrderArea').style.display='';
+    renderResultOrderArea();
+  }else{
+    $('resultPickSimple').style.display='';
+    $('resultOrderArea').style.display='none';
+    ['firstPlace','secondPlace'].forEach(id=>{
+      const el=$(id); if(document.activeElement===el)return;
+      const current = id==='firstPlace'?resultFirst():resultSecond();
+      el.innerHTML=horseOptions(current);
+    });
+  }
+}
+function renderResultOrderArea(){
+  const el=$('resultOrderArea');
+  if(el.contains(document.activeElement))return;
+  const n=state.horses.length;
+  if(n===0){el.innerHTML='<div class="muted">出走馬がいません。</div>';return;}
+  const order=state.result.order||[];
+  el.innerHTML = Array.from({length:n},(_,i)=>{
+    const pos=i+1;
+    const cur=order[i]!=null?order[i]:'';
+    let opts='<option value="">未選択</option>';
+    state.horses.forEach((h,hi)=>{
+      const usedElsewhere = order.some((v,idx)=>idx!==i && v!=null && Number(v)===h.id);
+      if(usedElsewhere)return;
+      opts+=`<option value="${h.id}"${String(cur)===String(h.id)?' selected':''}>${hi+1}. ${escapeHtml(h.name)}</option>`;
+    });
+    return `<div class="row" style="margin-bottom:8px;align-items:center">
+      <label style="flex:0 0 44px;margin:0">${pos}着</label>
+      <select class="result-pos" data-pos="${pos}">${opts}</select>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.result-pos').forEach(sel=>sel.addEventListener('change',async e=>{
+    const pos=+e.target.dataset.pos;
+    const val=e.target.value===''?null:+e.target.value;
+    await sendAction('setResult',{order:setResultAt(pos,val)});
+  }));
 }
 $('firstPlace').addEventListener('change',async e=>{
   const val=e.target.value===''?null:+e.target.value;
-  await sendAction('setResult',{first:val,second:state.result.second});
+  await sendAction('setResult',{order:setResultAt(1,val)});
 });
 $('secondPlace').addEventListener('change',async e=>{
   const val=e.target.value===''?null:+e.target.value;
-  await sendAction('setResult',{first:state.result.first,second:val});
+  await sendAction('setResult',{order:setResultAt(2,val)});
 });
 
-function winningKey(){
-  const{first,second}=state.result;
-  if(first===null||second===null||first===second)return null;
-  if(state.betType==='wakuren'){
-    const wa=horseWaku(first), wb=horseWaku(second);
-    if(wa===null||wb===null)return null;
-    return comboKey(wa,wb);
-  }
-  return comboKey(first,second);
-}
-
 $('calcBtn').addEventListener('click',()=>{
-  const{first,second}=state.result;
-  if(first===null||second===null){toast('1着・2着を選んでください');return;}
-  if(first===second){toast('1着と2着は別の馬にしてください');return;}
-  if(state.betType==='wakuren'&&(horseWaku(first)===null||horseWaku(second)===null)){
-    toast('1着・2着の馬に枠番が設定されていません');return;
+  if(state.betType==='umatan'){
+    if(!(state.result.order||[]).some(v=>v!=null)){toast('着順を入力してください');return;}
+  }else{
+    if(resultFirst()===null||resultSecond()===null){toast('1着・2着を選んでください');return;}
+    if(resultFirst()===resultSecond()){toast('1着と2着は別の馬にしてください');return;}
+    if(state.betType==='wakuren'&&(horseWaku(resultFirst())===null||horseWaku(resultSecond())===null)){
+      toast('1着・2着の馬に枠番が設定されていません');return;
+    }
   }
   if(state.votes.length===0){toast('投票がありません');return;}
   renderResult();
 });
 
 function renderResult(){
-  if(state.betType==='wakuren'&&(horseWaku(state.result.first)===null||horseWaku(state.result.second)===null)){
+  if(state.betType==='wakuren'&&(horseWaku(resultFirst())===null||horseWaku(resultSecond())===null)){
     $('resultArea').innerHTML='<div class="card"><div class="empty">1着・2着の馬に枠番が設定されていません。「設定」タブで枠番を入力してください。</div></div>';
     return;
   }
-  const win=winningKey();
   const unit=UNIT_STAKE;
   const totalBets=state.votes.reduce((s,v)=>s+v.combos.length,0);
   const pot=totalBets*unit;
@@ -623,24 +709,34 @@ function renderResult(){
   // 的中者
   const winners=[];
   state.votes.forEach(v=>{
-    const hit=v.combos.some(c=>comboKey(c[0],c[1])===win);
+    const hit=v.combos.some(c=>isHit(c));
     if(hit)winners.push(v);
   });
   const payoutPer = winners.length>0 ? Math.floor(pot/winners.length) : 0;
   const odds = winners.length>0 ? (payoutPer/unit) : 0;
 
-  const labelArgs = state.betType==='wakuren'
-    ? [horseWaku(state.result.first),horseWaku(state.result.second)]
-    : [state.result.first,state.result.second];
+  let headerHtml;
+  if(state.betType==='umatan'){
+    const order=state.result.order||[];
+    const items=order.map((hid,i)=>hid!=null?`<span class="bet-pair">${i+1}着 ${escapeHtml(horseNameById(+hid))}</span>`:'').filter(Boolean).join('');
+    headerHtml=`<div style="text-align:center;margin:6px 0 12px">
+      <div>${items||'<span class="muted">未入力</span>'}</div>
+    </div>`;
+  }else{
+    const labelArgs = state.betType==='wakuren'
+      ? [horseWaku(resultFirst()),horseWaku(resultSecond())]
+      : [resultFirst(),resultSecond()];
+    headerHtml=`<div style="text-align:center;margin:6px 0 12px">
+      <span class="pill">${comboLabel(labelArgs)}</span>
+      <div class="muted" style="margin-top:8px">
+        ${escapeHtml(horseNameById(resultFirst()))} ― ${escapeHtml(horseNameById(resultSecond()))}
+      </div>
+    </div>`;
+  }
 
   let html=`<div class="card">
     <h2>🏆 的中組み合わせ</h2>
-    <div style="text-align:center;margin:6px 0 12px">
-      <span class="pill">${comboLabel(labelArgs[0],labelArgs[1])}</span>
-      <div class="muted" style="margin-top:8px">
-        ${escapeHtml(horseNameById(state.result.first))} ― ${escapeHtml(horseNameById(state.result.second))}
-      </div>
-    </div>
+    ${headerHtml}
     <div class="total-line"><span>参加人数</span><span>${state.votes.length}人</span></div>
     <div class="total-line"><span>総投票点数</span><span>${totalBets}点</span></div>
     <div class="total-line"><span>総額（プール）</span><span>${pot.toLocaleString()} pt</span></div>
@@ -690,7 +786,7 @@ function renderBetTypeUI(){
   $('comboLabel').textContent = `${betTypeLabel()}（最大6点）`;
   const hints={
     umaren:'馬連は1着・2着の組み合わせ（順不同）が的中です。',
-    umatan:'馬単は1着・2着の組み合わせ（順序通り）が的中です。',
+    umatan:'馬単は指定した着順どうしの組み合わせ（例：1着→2着、3着→6着など）が的中です。',
     wakuren:'枠連は1着・2着の枠番の組み合わせ（順不同）が的中です。'
   };
   $('tallyHint').textContent = hints[state.betType]||hints.umaren;
@@ -719,7 +815,7 @@ function renderAll(){
   }
   lastBetType=state.betType;
   renderVoteList();
-  renderResultSelectsSafe();
+  renderResultUI();
 }
 
 /* ---------- init ---------- */
@@ -734,7 +830,7 @@ function initUI(){
   $('comboArea').innerHTML='';
   renderComboArea();
   renderVoteList();
-  renderResultSelectsSafe();
+  renderResultUI();
   $('resultArea').innerHTML='';
   if(apiUrl){ setSyncStatus('読み込み中…',true); refresh(true); startPolling(); }
   else{ setSyncStatus('未接続',false); }
