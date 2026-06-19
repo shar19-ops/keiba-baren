@@ -39,6 +39,8 @@ function ensureSheets() {
     meta.appendRow(['resultOrder', '[]']);
     meta.appendRow(['nextHorseId', '1']);
     meta.appendRow(['betType', 'umaren']);
+    meta.appendRow(['umatanPosA', '1']);
+    meta.appendRow(['umatanPosB', '2']);
   }
   return { horses: horses, votes: votes, meta: meta };
 }
@@ -88,8 +90,10 @@ function buildState() {
   order = order.map(function (v) { return (v === null || v === undefined || v === '') ? null : Number(v); });
   var result = { order: order };
   var betType = getMetaValue(sh.meta, 'betType') || 'umaren';
+  var umatanPosA = Number(getMetaValue(sh.meta, 'umatanPosA')) || 1;
+  var umatanPosB = Number(getMetaValue(sh.meta, 'umatanPosB')) || 2;
 
-  return { raceName: raceName, horses: horses, votes: votes, result: result, betType: betType };
+  return { raceName: raceName, horses: horses, votes: votes, result: result, betType: betType, umatanPositions: [umatanPosA, umatanPosB] };
 }
 
 function jsonOutput(obj) {
@@ -127,12 +131,21 @@ function doPost(e) {
       setMetaValue(sh.meta, 'betType', bt);
       clearSheetKeepHeader(sh.votes);
       setMetaValue(sh.meta, 'resultOrder', '[]');
+      setMetaValue(sh.meta, 'umatanPosA', '1');
+      setMetaValue(sh.meta, 'umatanPosB', '2');
+    } else if (action === 'setUmatanPositions') {
+      var pa = Number(body.posA) || 1;
+      var pb = Number(body.posB) || 2;
+      setMetaValue(sh.meta, 'umatanPosA', pa);
+      setMetaValue(sh.meta, 'umatanPosB', pb);
+      clearSheetKeepHeader(sh.votes);
+      setMetaValue(sh.meta, 'resultOrder', '[]');
     } else if (action === 'removeHorse') {
       var id = Number(body.id);
       var btCur = getMetaValue(sh.meta, 'betType') || 'umaren';
       removeHorseRow(sh.horses, id);
       if (btCur !== 'wakuren') {
-        stripHorseFromVotes(sh.votes, id, btCur);
+        stripHorseFromVotes(sh.votes, id);
       }
       var order = [];
       try { order = JSON.parse(getMetaValue(sh.meta, 'resultOrder') || '[]'); } catch (e) { order = []; }
@@ -161,6 +174,8 @@ function doPost(e) {
       setMetaValue(sh.meta, 'resultOrder', '[]');
       setMetaValue(sh.meta, 'nextHorseId', '1');
       setMetaValue(sh.meta, 'betType', 'umaren');
+      setMetaValue(sh.meta, 'umatanPosA', '1');
+      setMetaValue(sh.meta, 'umatanPosB', '2');
     }
 
     return jsonOutput(buildState());
@@ -183,15 +198,12 @@ function removeHorseRow(sheet, id) {
   }
 }
 
-function stripHorseFromVotes(votesSheet, id, betType) {
+function stripHorseFromVotes(votesSheet, id) {
   var data = votesSheet.getDataRange().getValues();
   for (var i = data.length - 1; i >= 1; i--) {
     var combos = [];
     try { combos = JSON.parse(data[i][1] || '[]'); } catch (e) { combos = []; }
-    var filtered = combos.filter(function (c) {
-      if (betType === 'umatan') return Number(c[1]) !== id && Number(c[3]) !== id;
-      return Number(c[0]) !== id && Number(c[1]) !== id;
-    });
+    var filtered = combos.filter(function (c) { return Number(c[0]) !== id && Number(c[1]) !== id; });
     if (filtered.length === 0) {
       votesSheet.deleteRow(i + 1);
     } else if (filtered.length !== combos.length) {
