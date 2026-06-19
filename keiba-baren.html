@@ -143,6 +143,11 @@
         <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
         <button class="btn btn-green btn-block" id="saveApiUrl" style="margin-top:10px">保存して接続</button>
         <div class="hint">幹事が用意したスプレッドシートのURLを、参加者全員がここに貼り付けてください（最初の1回だけでOK）。同じURLを入れた全員のデータが共有されます。</div>
+        <button class="btn btn-ghost btn-block" id="showQr" style="margin-top:10px">📱 接続用QRコードを表示</button>
+        <div id="qrArea" style="display:none;text-align:center;margin-top:12px">
+          <img id="qrImg" alt="QRコード" style="width:200px;height:200px;border:1px solid var(--line);border-radius:12px">
+          <div class="hint">参加者はこのQRコードをスマホのカメラで読み取り、出てきたリンクを開くだけで共有設定が自動入力されます。</div>
+        </div>
       </div>
 
       <div class="card">
@@ -252,6 +257,15 @@ const POLL_MS = 5000;
 const BET_TYPE_LABELS = {umaren:'馬連', umatan:'馬単', wakuren:'枠連'};
 
 let apiUrl = localStorage.getItem(LS_URL_KEY) || '';
+{
+  const fromQr = new URLSearchParams(location.search).get('api');
+  if(fromQr){
+    apiUrl = fromQr;
+    localStorage.setItem(LS_URL_KEY, apiUrl);
+    history.replaceState({}, '', location.origin+location.pathname);
+    toast('QRコードから共有設定を読み込みました');
+  }
+}
 let state = { raceName:'', horses:[], votes:[], result:{order:[]}, betType:'umaren', umatanPositions:[1,2] };
 let pollTimer = null;
 let lastBetType = null;
@@ -415,6 +429,14 @@ $('saveApiUrl').addEventListener('click',async ()=>{
   startPolling();
 });
 
+$('showQr').addEventListener('click',()=>{
+  const v=$('apiUrlInput').value.trim();
+  if(!v){toast('先にURLを入力してください');return;}
+  const link=location.origin+location.pathname+'?api='+encodeURIComponent(v);
+  $('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(link);
+  $('qrArea').style.display='';
+});
+
 /* ---------- SETUP: レース名 ---------- */
 $('raceName').addEventListener('input',e=>{ $('raceLabel').textContent=e.target.value||'レース未設定'; });
 $('raceName').addEventListener('change',async e=>{ await sendAction('setRaceName',{raceName:e.target.value}); });
@@ -513,7 +535,10 @@ function renderComboArea(){
     return;
   }
   $('addCombo').style.display='';
-  if(area.children.length===0){ for(let i=0;i<MIN_COMBO;i++) addComboRow(); }
+  if(area.querySelectorAll('.combo-row').length===0){
+    area.innerHTML='';
+    for(let i=0;i<MIN_COMBO;i++) addComboRow();
+  }
   updateVoteTotal();
 }
 function addComboRow(){
