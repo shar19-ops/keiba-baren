@@ -50,8 +50,9 @@ function ensureSheets() {
 
   if (!races) {
     races = ss.insertSheet('Races');
-    races.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt']);
+    races.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake']);
   }
+  ensureUnitStakeColumn_(races);
   if (!horses) {
     horses = ss.insertSheet('Horses');
     horses.appendRow(['id', 'raceId', 'name', 'waku', 'sortOrder']);
@@ -77,6 +78,24 @@ function hasRaceIdColumn_(horsesSheet) {
   if (lastCol < 1) return false;
   var header = horsesSheet.getRange(1, 1, 1, lastCol).getValues()[0];
   return header.indexOf('raceId') !== -1;
+}
+
+/**
+ * 既存のRacesシートに unitStake 列が無い場合、末尾に追加し既存行へデフォルト500を補完する。
+ * （賭け金=ポイント代をレースごとに変更可能にする機能の追加に伴う、既存シートのスキーマ移行）
+ */
+function ensureUnitStakeColumn_(racesSheet) {
+  var lastCol = racesSheet.getLastColumn();
+  var header = lastCol > 0 ? racesSheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  if (header.indexOf('unitStake') !== -1) return;
+  var col = lastCol + 1;
+  racesSheet.getRange(1, col).setValue('unitStake');
+  var lastRow = racesSheet.getLastRow();
+  if (lastRow > 1) {
+    var values = [];
+    for (var i = 0; i < lastRow - 1; i++) values.push([500]);
+    racesSheet.getRange(2, col, values.length, 1).setValues(values);
+  }
 }
 
 /**
@@ -108,8 +127,8 @@ function migrateToMultiRace_(ss) {
     // 2. Races シートに id=1 のレースを作成
     var racesSheet = ss.getSheetByName('Races') || ss.insertSheet('Races');
     racesSheet.clear();
-    racesSheet.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt']);
-    racesSheet.appendRow([1, oldRaceName || 'レース1', oldBetType, oldPosA, oldPosB, oldResultOrder, oldNextHorseId, new Date().toISOString()]);
+    racesSheet.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake']);
+    racesSheet.appendRow([1, oldRaceName || 'レース1', oldBetType, oldPosA, oldPosB, oldResultOrder, oldNextHorseId, new Date().toISOString(), 500]);
 
     // 3. Horses を raceId=1 付きで書き換え（既存の並び順を sortOrder として保持）
     var newHorseRows = horseRows.map(function (r, i) {
@@ -162,7 +181,7 @@ function setMetaValue(metaSheet, key, value) {
   metaSheet.appendRow([key, value]);
 }
 
-// Races列: 1=id 2=name 3=betType 4=umatanPosA 5=umatanPosB 6=resultOrder 7=nextHorseId 8=createdAt
+// Races列: 1=id 2=name 3=betType 4=umatanPosA 5=umatanPosB 6=resultOrder 7=nextHorseId 8=createdAt 9=unitStake
 function findRaceRow_(racesSheet, raceId) {
   var data = racesSheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
@@ -170,7 +189,7 @@ function findRaceRow_(racesSheet, raceId) {
       return {
         rowIndex: i + 1, id: data[i][0], name: data[i][1], betType: data[i][2],
         umatanPosA: data[i][3], umatanPosB: data[i][4], resultOrder: data[i][5],
-        nextHorseId: data[i][6], createdAt: data[i][7]
+        nextHorseId: data[i][6], createdAt: data[i][7], unitStake: data[i][8]
       };
     }
   }
@@ -222,7 +241,8 @@ function buildState(raceId) {
     votes: votes,
     result: { order: order },
     betType: raceRow.betType || 'umaren',
-    umatanPositions: [Number(raceRow.umatanPosA) || 1, Number(raceRow.umatanPosB) || 2]
+    umatanPositions: [Number(raceRow.umatanPosA) || 1, Number(raceRow.umatanPosB) || 2],
+    unitStake: Number(raceRow.unitStake) || 500
   };
 }
 
@@ -283,7 +303,8 @@ function importAllData_(sh, races) {
     sh.races.appendRow([
       nextRaceId, String(r.raceName || '復元レース'), r.betType || 'umaren',
       Number(umatanPositions[0]) || 1, Number(umatanPositions[1]) || 2,
-      JSON.stringify(resultOrder), maxHorseId + 1, new Date().toISOString()
+      JSON.stringify(resultOrder), maxHorseId + 1, new Date().toISOString(),
+      Number(r.unitStake) || 500
     ]);
     setMetaValue(sh.meta, 'nextRaceId', nextRaceId + 1);
 
@@ -334,7 +355,7 @@ function doPost(e) {
     if (action === 'createRace') {
       var rname = String(body.name || '').trim();
       var nextRaceId = Number(getMetaValue(sh.meta, 'nextRaceId')) || 1;
-      sh.races.appendRow([nextRaceId, rname || ('レース' + nextRaceId), 'umaren', 1, 2, '[]', 1, new Date().toISOString()]);
+      sh.races.appendRow([nextRaceId, rname || ('レース' + nextRaceId), 'umaren', 1, 2, '[]', 1, new Date().toISOString(), 500]);
       setMetaValue(sh.meta, 'nextRaceId', nextRaceId + 1);
       return jsonOutput({ races: buildRaceList() });
     }
@@ -417,6 +438,9 @@ function doPost(e) {
       deleteVoteRow(sh.votes, raceId, String(body.name || ''));
     } else if (action === 'setRaceName') {
       setRaceField_(sh.races, raceId, 2, String(body.raceName || ''));
+    } else if (action === 'setUnitStake') {
+      var us = Number(body.unitStake);
+      if (us > 0) setRaceField_(sh.races, raceId, 9, Math.round(us));
     } else if (action === 'setResult') {
       var ord = Array.isArray(body.order) ? body.order.map(function (v) {
         return (v === null || v === undefined || v === '') ? null : Number(v);
@@ -583,7 +607,7 @@ function exportResultToExcel_(sh, raceId, body) {
   lines.push(['1点あたり配当', payoutPerHit]);
   lines.push(['配当率', odds]);
   lines.push([]);
-  lines.push(['名前', '点数', '賭け金', '的中点数', '配当', '収支']);
+  lines.push(['名前', '点数', 'ポイント代', '的中点数', '配当', '収支']);
   rows.forEach(function (r) {
     lines.push([r.name, r.comboCount, r.stake, r.hitCount, r.payout, r.net]);
   });

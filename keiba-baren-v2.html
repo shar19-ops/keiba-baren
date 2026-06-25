@@ -233,8 +233,12 @@
         <label>レース名（任意）</label>
         <input type="text" id="raceName" placeholder="例：第3レース 仲間内ダービー">
         <div style="height:12px"></div>
-        <label>1点あたりの賭け金</label>
-        <div class="fixed-stake"><span class="pill">500 pt</span><span class="muted">／1点（固定）</span></div>
+        <label>1点あたりのポイント代</label>
+        <div class="row">
+          <input type="number" id="unitStakeInput" min="1" step="1" placeholder="500">
+          <button class="btn btn-green" id="saveUnitStake" style="flex:0 0 70px">保存</button>
+        </div>
+        <div class="hint">デフォルトは500pt。レースごとに変更できます。</div>
       </div>
 
       <div class="card">
@@ -292,7 +296,7 @@
       <label id="comboLabel">馬連（4〜6点）</label>
       <div id="comboArea"></div>
       <button class="btn btn-ghost btn-sm" id="addCombo" style="margin-top:4px">＋ 組を追加</button>
-      <div class="total-line big"><span>合計賭け金</span><span id="voteTotal">0 pt</span></div>
+      <div class="total-line big"><span>合計ポイント代</span><span id="voteTotal">0 pt</span></div>
       <button class="btn btn-primary btn-block" id="submitVote" style="margin-top:12px">この内容で投票</button>
       <div class="hint">同じ人で投票し直すと上書きされます。</div>
     </div>
@@ -333,7 +337,7 @@ const LS_CACHE_PREFIX = 'baren_state_v3_';
 const LS_RACELIST_CACHE_KEY = 'baren_racelist_v3';
 const MAX_COMBO = 6;
 const MIN_COMBO = 4;
-const UNIT_STAKE = 500; // 1点あたりの賭け金（固定）
+const DEFAULT_UNIT_STAKE = 500; // 1点あたりのポイント代（デフォルト値。レースごとに変更可能）
 const POLL_MS = 5000;
 const SETUP_PASSWORD = 'golf';
 const LS_UNLOCK_KEY = 'baren_setup_unlocked';
@@ -353,7 +357,7 @@ let driveFolderId = '';
     toast(fromRace ? 'QRコードから共有設定・レースを読み込みました' : 'QRコードから共有設定を読み込みました');
   }
 }
-function emptyState(){ return { raceId:null, raceName:'', horses:[], votes:[], result:{order:[]}, betType:'umaren', umatanPositions:[1,2] }; }
+function emptyState(){ return { raceId:null, raceName:'', horses:[], votes:[], result:{order:[]}, betType:'umaren', umatanPositions:[1,2], unitStake:DEFAULT_UNIT_STAKE }; }
 let state = emptyState();
 let raceList = [];
 let pollTimer = null;
@@ -478,7 +482,8 @@ function applyRaceState(s){
     votes:Array.isArray(s.votes)?s.votes:[],
     result:{order:(s.result&&Array.isArray(s.result.order))?s.result.order:[]},
     betType:s.betType||'umaren',
-    umatanPositions:(Array.isArray(s.umatanPositions)&&s.umatanPositions.length===2)?s.umatanPositions.map(Number):[1,2]
+    umatanPositions:(Array.isArray(s.umatanPositions)&&s.umatanPositions.length===2)?s.umatanPositions.map(Number):[1,2],
+    unitStake:Number(s.unitStake)||DEFAULT_UNIT_STAKE
   };
   saveCache();
   renderAll();
@@ -634,6 +639,16 @@ function renderRaceName(){
   if(document.activeElement!==el) el.value=state.raceName;
   $('raceLabel').textContent=state.raceName||(currentRaceId?'レース未選択':'レース未選択');
 }
+function renderUnitStake(){
+  const el=$('unitStakeInput');
+  if(document.activeElement!==el) el.value=state.unitStake;
+}
+$('saveUnitStake').addEventListener('click',async ()=>{
+  const v=Number($('unitStakeInput').value);
+  if(!v||v<=0){toast('1以上の数値を入力してください');return;}
+  const ok=await sendRaceAction('setUnitStake',{unitStake:v},'ポイント代を更新しました');
+  if(ok){ updateVoteTotal(); renderVoteList(); }
+});
 function renderSetupRaceLabel(){
   $('setupRaceLabel').textContent = currentRaceId ? (state.raceName||('レース #'+currentRaceId)) : 'レース未選択（「レース」タブで選択してください）';
 }
@@ -913,19 +928,26 @@ $('addCombo').addEventListener('click',()=>addComboRow());
 
 function readCombos(){
   const combos=[]; let err=null;
-  const dupMsg = state.betType==='wakuren'?'同じ枠どうしは選べません':'同じ馬どうしは選べません';
   $('comboArea').querySelectorAll('.combo-row').forEach(r=>{
     const a=r.querySelector('.ca').value, b=r.querySelector('.cb').value;
     if(a===''&&b==='')return;
     if(a===''||b===''){err='未選択の項目がある組があります';return;}
-    if(a===b){err=dupMsg;return;}
+    if(a===b){
+      if(state.betType==='wakuren'){
+        const w=wakuList().find(x=>String(x.waku)===String(a));
+        if(!w||w.horses.length<2){ err='この枠には馬が1頭しかいないため、同じ枠は選べません'; return; }
+      }else{
+        err='同じ馬どうしは選べません';
+        return;
+      }
+    }
     combos.push([+a,+b]);
   });
   return {combos,err};
 }
 function updateVoteTotal(){
   const {combos}=readCombos();
-  $('voteTotal').textContent=(combos.length*UNIT_STAKE).toLocaleString()+' pt';
+  $('voteTotal').textContent=(combos.length*state.unitStake).toLocaleString()+' pt';
 }
 $('submitVote').addEventListener('click',async ()=>{
   const name=$('voterName').value.trim();
@@ -952,7 +974,7 @@ function renderVoteList(){
       const hit = isHit(c);
       return `<span class="bet-pair${hit?' hit':''}">${comboLabel(c)}</span>`;
     }).join('');
-    const stake=(v.combos.length*UNIT_STAKE).toLocaleString();
+    const stake=(v.combos.length*state.unitStake).toLocaleString();
     return `<div class="vote-item">
       <div class="top"><span class="name">${escapeHtml(v.name)}</span>
         <span><span class="badge">${v.combos.length}点 / ${stake}pt</span>
@@ -1012,7 +1034,7 @@ function renderResult(){
     return;
   }
   const[posA,posB]=activePositions();
-  const unit=UNIT_STAKE;
+  const unit=state.unitStake;
   const totalBets=state.votes.reduce((s,v)=>s+v.combos.length,0);
   const pot=totalBets*unit;
 
@@ -1061,7 +1083,7 @@ function renderResult(){
         </span>
       </div>`;
     });
-    html+=`<div class="hint">配当 = 総額を的中点数で配分（的中点数 × 1点あたり配当）。括弧内は賭け金を差し引いた収支です。</div></div>`;
+    html+=`<div class="hint">配当 = 総額を的中点数で配分（的中点数 × 1点あたり配当）。括弧内はポイント代を差し引いた収支です。</div></div>`;
   }else{
     html+=`<div class="card"><div class="empty">的中者はいませんでした 😢<br>総額 ${pot.toLocaleString()}pt はキャリーオーバー or 親の総取り。</div></div>`;
   }
@@ -1151,6 +1173,7 @@ document.querySelectorAll('#betTypeSegmented input[name="betType"]').forEach(inp
 /* ---------- 全体再描画（サーバーから受信した最新状態を反映） ---------- */
 function renderAll(){
   renderRaceName();
+  renderUnitStake();
   renderHorseList();
   renderBetTypeUI();
   renderSetupRaceLabel();
@@ -1177,6 +1200,7 @@ function initUI(){
   showSetupContent(isSetupUnlocked());
   showRaceLockUI(isSetupUnlocked());
   renderRaceName();
+  renderUnitStake();
   renderHorseList();
   renderBetTypeUI();
   renderSetupRaceLabel();
