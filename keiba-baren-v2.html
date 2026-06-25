@@ -153,21 +153,31 @@
 <main>
   <!-- ===== RACE ===== -->
   <section class="view" id="view-race">
-    <div class="card">
-      <h2>➕ 新しいレースを追加</h2>
-      <div class="row">
-        <input type="text" id="newRaceName" placeholder="レース名（例：第3レース）" autocomplete="off">
-        <button class="btn btn-green" id="createRaceBtn" style="flex:0 0 80px">作成</button>
-      </div>
-      <div class="hint">作成すると自動でそのレースが選択されます。</div>
+    <div class="card lock-card" id="raceLock">
+      <div class="icon">🔒</div>
+      <h2 style="justify-content:center">レースの追加・削除は幹事のみ操作できます</h2>
+      <input type="password" id="racePassword" placeholder="パスワード" autocomplete="off" style="margin:10px 0">
+      <button class="btn btn-primary btn-block" id="unlockRace">解除する</button>
+      <div class="hint">投票するレースへの参加は、幹事から共有されたQRコードを読み取ってください。レースの一覧からの選択・追加・削除・QR発行・バックアップ操作には幹事用パスワードが必要です。</div>
     </div>
 
-    <div class="card">
-      <h2>📦 レース一覧のバックアップ</h2>
-      <button class="btn btn-green btn-block" id="exportBackupBtn">💾 全レースをバックアップ（ダウンロード）</button>
-      <button class="btn btn-ghost btn-block" id="importBackupBtn" style="margin-top:8px">📂 バックアップから復元（追加）</button>
-      <input type="file" id="backupFileInput" accept="application/json,.json" style="display:none">
-      <div class="hint">出走馬・投票・結果を含む全レースをJSONファイルとして保存できます。復元は既存のレースを残したまま、ファイルの内容を新しいレースとして追加します（上書きはされません）。</div>
+    <div id="raceAdminControls" style="display:none">
+      <div class="card">
+        <h2>➕ 新しいレースを追加</h2>
+        <div class="row">
+          <input type="text" id="newRaceName" placeholder="レース名（例：第3レース）" autocomplete="off">
+          <button class="btn btn-green" id="createRaceBtn" style="flex:0 0 80px">作成</button>
+        </div>
+        <div class="hint">作成すると自動でそのレースが選択されます。</div>
+      </div>
+
+      <div class="card">
+        <h2>📦 レース一覧のバックアップ</h2>
+        <button class="btn btn-green btn-block" id="exportBackupBtn">💾 全レースをバックアップ（ダウンロード）</button>
+        <button class="btn btn-ghost btn-block" id="importBackupBtn" style="margin-top:8px">📂 バックアップから復元（追加）</button>
+        <input type="file" id="backupFileInput" accept="application/json,.json" style="display:none">
+        <div class="hint">出走馬・投票・結果を含む全レースをJSONファイルとして保存できます。復元は既存のレースを残したまま、ファイルの内容を新しいレースとして追加します（上書きはされません）。</div>
+      </div>
     </div>
 
     <div class="card" id="raceQrCard" style="display:none">
@@ -179,7 +189,7 @@
       <div class="hint">投票者がこのQRコードを読み取ると、共有設定とレース選択が自動で行われます。</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="raceListCard">
       <h2>🏁 レース一覧 <span class="badge" id="raceListCount">0件</span></h2>
       <div id="raceListArea"></div>
     </div>
@@ -538,25 +548,34 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('focus',()=>{ if(apiUrl)refresh(false); });
 
-/* ---------- 設定タブ：パスワード保護 ---------- */
+/* ---------- 幹事用パスワード保護（設定タブ・レースタブ共通） ---------- */
 function isSetupUnlocked(){ return sessionStorage.getItem(LS_UNLOCK_KEY)==='1'; }
 function showSetupContent(unlocked){
   $('setupLock').style.display = unlocked?'none':'';
   $('setupContent').style.display = unlocked?'':'none';
 }
-function tryUnlock(){
-  const v=$('setupPassword').value;
+function showRaceLockUI(unlocked){
+  $('raceLock').style.display = unlocked?'none':'';
+  $('raceAdminControls').style.display = unlocked?'':'none';
+  $('raceListCard').style.display = unlocked?'':'none';
+  renderRaceTab();
+}
+function tryUnlockWith(passwordInputId){
+  const v=$(passwordInputId).value;
   if(v===SETUP_PASSWORD){
     sessionStorage.setItem(LS_UNLOCK_KEY,'1');
-    $('setupPassword').value='';
+    $(passwordInputId).value='';
     showSetupContent(true);
-    toast('設定を解除しました');
+    showRaceLockUI(true);
+    toast('ロックを解除しました');
   }else{
     toast('パスワードが違います');
   }
 }
-$('unlockSetup').addEventListener('click',tryUnlock);
-$('setupPassword').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); tryUnlock(); } });
+$('unlockSetup').addEventListener('click',()=>tryUnlockWith('setupPassword'));
+$('setupPassword').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); tryUnlockWith('setupPassword'); } });
+$('unlockRace').addEventListener('click',()=>tryUnlockWith('racePassword'));
+$('racePassword').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); tryUnlockWith('racePassword'); } });
 
 /* ---------- tabs ---------- */
 function switchTab(view){
@@ -564,7 +583,7 @@ function switchTab(view){
   document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active', x.id==='view-'+view));
   if(view==='vote'){renderVoteHorseList();renderComboArea();renderVoteList();}
   if(view==='tally'){renderResultUI();}
-  if(view==='race'){renderRaceTab();refreshRaceList(true);}
+  if(view==='race'){showRaceLockUI(isSetupUnlocked());refreshRaceList(true);}
   if(view==='setup'){showSetupContent(isSetupUnlocked());renderSetupRaceLabel();}
   if(apiUrl&&currentRaceId)refresh(false);
   window.scrollTo(0,0);
@@ -796,6 +815,7 @@ function renderRaceTab(){
     el.innerHTML='<div class="empty">まだレースがありません。上の「新しいレースを追加」から作成してください。</div>';
     return;
   }
+  const unlocked=isSetupUnlocked();
   el.innerHTML=raceList.map(r=>{
     const sel=r.id===currentRaceId;
     return `<div class="race-card${sel?' selected':''}">
@@ -805,9 +825,9 @@ function renderRaceTab(){
       </div>
       <div class="muted">${BET_TYPE_LABELS[r.betType]||r.betType}・出走馬${r.horseCount}頭・投票${r.voteCount}人${r.hasResult?'・結果入力済み':''}</div>
       <div class="race-card-actions">
-        <button class="btn btn-green btn-sm select-race" data-id="${r.id}" ${sel?'disabled':''}>${sel?'選択中':'選択する'}</button>
-        <button class="btn btn-ghost btn-sm qr-race" data-id="${r.id}">📱 QR</button>
-        <button class="btn btn-danger btn-sm del-race" data-id="${r.id}">🗑 削除</button>
+        ${unlocked?`<button class="btn btn-green btn-sm select-race" data-id="${r.id}" ${sel?'disabled':''}>${sel?'選択中':'選択する'}</button>`:''}
+        ${unlocked?`<button class="btn btn-ghost btn-sm qr-race" data-id="${r.id}">📱 QR</button>`:''}
+        ${unlocked?`<button class="btn btn-danger btn-sm del-race" data-id="${r.id}">🗑 削除</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -1155,11 +1175,11 @@ function initUI(){
   loadRaceListCache();
   $('apiUrlInput').value=apiUrl;
   showSetupContent(isSetupUnlocked());
+  showRaceLockUI(isSetupUnlocked());
   renderRaceName();
   renderHorseList();
   renderBetTypeUI();
   renderSetupRaceLabel();
-  renderRaceTab();
   lastBetType=state.betType;
   lastUmatanPosKey = state.betType==='umatan' ? umatanPositions().join('-') : null;
   $('comboArea').innerHTML='';
