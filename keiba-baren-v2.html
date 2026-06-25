@@ -122,6 +122,7 @@
   .hint{font-size:12px;color:var(--sub);margin-top:6px;}
   .badge{font-size:11px;background:#eef2f0;color:var(--sub);border-radius:6px;padding:2px 7px;font-weight:700;}
   .badge-sel{background:var(--accent);color:#3a2c00;}
+  .badge-closed{background:#fde8e8;color:var(--danger);margin-left:4px;}
   .toast{
     position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;
     padding:10px 18px;border-radius:24px;font-size:14px;z-index:100;opacity:0;transition:.25s;pointer-events:none;
@@ -290,15 +291,18 @@
     </div>
     <div class="card">
       <h2>✍️ 投票する</h2>
-      <label>名前</label>
-      <input type="text" id="voterName" placeholder="投票する人の名前" autocomplete="off">
-      <div style="height:12px"></div>
-      <label id="comboLabel">馬連（4〜6点）</label>
-      <div id="comboArea"></div>
-      <button class="btn btn-ghost btn-sm" id="addCombo" style="margin-top:4px">＋ 組を追加</button>
-      <div class="total-line big"><span>合計ポイント代</span><span id="voteTotal">0 pt</span></div>
-      <button class="btn btn-primary btn-block" id="submitVote" style="margin-top:12px">この内容で投票</button>
-      <div class="hint">同じ人で投票し直すと上書きされます。</div>
+      <div id="voteClosedNotice" class="empty" style="display:none">🔒 このレースは締め切られました。新しい投票・投票の変更はできません。</div>
+      <div id="voteFormFields">
+        <label>名前</label>
+        <input type="text" id="voterName" placeholder="投票する人の名前" autocomplete="off">
+        <div style="height:12px"></div>
+        <label id="comboLabel">馬連（4〜6点）</label>
+        <div id="comboArea"></div>
+        <button class="btn btn-ghost btn-sm" id="addCombo" style="margin-top:4px">＋ 組を追加</button>
+        <div class="total-line big"><span>合計ポイント代</span><span id="voteTotal">0 pt</span></div>
+        <button class="btn btn-primary btn-block" id="submitVote" style="margin-top:12px">この内容で投票</button>
+        <div class="hint">同じ人で投票し直すと上書きされます。</div>
+      </div>
     </div>
 
     <div class="card">
@@ -357,7 +361,7 @@ let driveFolderId = '';
     toast(fromRace ? 'QRコードから共有設定・レースを読み込みました' : 'QRコードから共有設定を読み込みました');
   }
 }
-function emptyState(){ return { raceId:null, raceName:'', horses:[], votes:[], result:{order:[]}, betType:'umaren', umatanPositions:[1,2], unitStake:DEFAULT_UNIT_STAKE }; }
+function emptyState(){ return { raceId:null, raceName:'', horses:[], votes:[], result:{order:[]}, betType:'umaren', umatanPositions:[1,2], unitStake:DEFAULT_UNIT_STAKE, closed:false }; }
 let state = emptyState();
 let raceList = [];
 let pollTimer = null;
@@ -483,7 +487,8 @@ function applyRaceState(s){
     result:{order:(s.result&&Array.isArray(s.result.order))?s.result.order:[]},
     betType:s.betType||'umaren',
     umatanPositions:(Array.isArray(s.umatanPositions)&&s.umatanPositions.length===2)?s.umatanPositions.map(Number):[1,2],
-    unitStake:Number(s.unitStake)||DEFAULT_UNIT_STAKE
+    unitStake:Number(s.unitStake)||DEFAULT_UNIT_STAKE,
+    closed:!!s.closed
   };
   saveCache();
   renderAll();
@@ -521,6 +526,7 @@ async function refreshRaceList(showError){
     if(showError)toast('レース一覧の取得に失敗しました');
   }
 }
+const ACTION_ERROR_MESSAGES = { race_closed:'このレースは締め切られています', race_not_found:'このレースは見つかりません' };
 async function sendRaceAction(action,payload,okMsg){
   if(!apiUrl){toast('先に「設定」で共有先URLを登録してください');return false;}
   if(!currentRaceId){toast('「レース」タブでレースを選択してください');return false;}
@@ -528,7 +534,11 @@ async function sendRaceAction(action,payload,okMsg){
     setSyncStatus('送信中…',true);
     const s=await apiPost(action,Object.assign({raceId:currentRaceId},payload||{}));
     applyRaceState(s);
-    if(s&&s.error){ setSyncStatus('送信エラー',false); return false; }
+    if(s&&s.error){
+      setSyncStatus('送信エラー',false);
+      toast(ACTION_ERROR_MESSAGES[s.error]||'送信に失敗しました');
+      return false;
+    }
     setSyncStatus('同期済み',true);
     if(okMsg)toast(okMsg);
     return true;
@@ -586,7 +596,7 @@ $('racePassword').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.prevent
 function switchTab(view){
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.view===view));
   document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active', x.id==='view-'+view));
-  if(view==='vote'){renderVoteHorseList();renderComboArea();renderVoteList();}
+  if(view==='vote'){renderVoteLock();renderVoteHorseList();renderComboArea();renderVoteList();}
   if(view==='tally'){renderResultUI();}
   if(view==='race'){showRaceLockUI(isSetupUnlocked());refreshRaceList(true);}
   if(view==='setup'){showSetupContent(isSetupUnlocked());renderSetupRaceLabel();}
@@ -836,19 +846,35 @@ function renderRaceTab(){
     return `<div class="race-card${sel?' selected':''}">
       <div class="race-card-top">
         <span class="race-card-name">${escapeHtml(r.name)}</span>
-        ${sel?'<span class="badge badge-sel">選択中</span>':''}
+        <span>${sel?'<span class="badge badge-sel">選択中</span>':''}${r.closed?'<span class="badge badge-closed">締め切り中</span>':''}</span>
       </div>
       <div class="muted">${BET_TYPE_LABELS[r.betType]||r.betType}・出走馬${r.horseCount}頭・投票${r.voteCount}人${r.hasResult?'・結果入力済み':''}</div>
       <div class="race-card-actions">
         ${unlocked?`<button class="btn btn-green btn-sm select-race" data-id="${r.id}" ${sel?'disabled':''}>${sel?'選択中':'選択する'}</button>`:''}
+        ${unlocked?`<button class="btn ${r.closed?'btn-ghost':'btn-primary'} btn-sm close-race" data-id="${r.id}" data-closed="${r.closed?'1':'0'}">${r.closed?'🔓 受付再開':'🔒 締め切る'}</button>`:''}
         ${unlocked?`<button class="btn btn-ghost btn-sm qr-race" data-id="${r.id}">📱 QR</button>`:''}
         ${unlocked?`<button class="btn btn-danger btn-sm del-race" data-id="${r.id}">🗑 削除</button>`:''}
       </div>
     </div>`;
   }).join('');
   el.querySelectorAll('.select-race').forEach(b=>b.addEventListener('click',()=>{selectRace(+b.dataset.id);toast('レースを選択しました');}));
+  el.querySelectorAll('.close-race').forEach(b=>b.addEventListener('click',()=>toggleRaceClosed(+b.dataset.id,b.dataset.closed==='1')));
   el.querySelectorAll('.qr-race').forEach(b=>b.addEventListener('click',()=>showRaceQr(+b.dataset.id)));
   el.querySelectorAll('.del-race').forEach(b=>b.addEventListener('click',()=>deleteRace(+b.dataset.id)));
+}
+async function toggleRaceClosed(id,currentlyClosed){
+  const newClosed=!currentlyClosed;
+  try{
+    setSyncStatus('送信中…',true);
+    const res=await apiPost('setRaceClosed',{raceId:id,closed:newClosed});
+    applyRaceList(res);
+    setSyncStatus('同期済み',true);
+    toast(newClosed?'投票を締め切りました':'投票を再開しました');
+    if(id===currentRaceId) await refresh(true);
+  }catch(e){
+    setSyncStatus('送信エラー',false);
+    toast('操作に失敗しました');
+  }
 }
 
 /* ---------- VOTE ---------- */
@@ -965,6 +991,10 @@ $('submitVote').addEventListener('click',async ()=>{
   }
 });
 
+function renderVoteLock(){
+  $('voteClosedNotice').style.display = state.closed?'':'none';
+  $('voteFormFields').style.display = state.closed?'none':'';
+}
 function renderVoteList(){
   const el=$('voteList');
   $('voteCount').textContent=state.votes.length+'人';
@@ -978,7 +1008,7 @@ function renderVoteList(){
     return `<div class="vote-item">
       <div class="top"><span class="name">${escapeHtml(v.name)}</span>
         <span><span class="badge">${v.combos.length}点 / ${stake}pt</span>
-        <button class="btn btn-danger btn-sm" data-name="${escapeHtml(v.name)}" style="margin-left:6px">削除</button></span>
+        ${state.closed?'':`<button class="btn btn-danger btn-sm" data-name="${escapeHtml(v.name)}" style="margin-left:6px">削除</button>`}</span>
       </div>
       <div>${pairs}</div>
     </div>`;
@@ -1187,6 +1217,7 @@ function renderAll(){
   }
   lastBetType=state.betType;
   lastUmatanPosKey=posKey;
+  renderVoteLock();
   renderVoteList();
   renderResultUI();
   renderRaceTab();
@@ -1206,6 +1237,7 @@ function initUI(){
   renderSetupRaceLabel();
   lastBetType=state.betType;
   lastUmatanPosKey = state.betType==='umatan' ? umatanPositions().join('-') : null;
+  renderVoteLock();
   $('comboArea').innerHTML='';
   renderComboArea();
   renderVoteList();

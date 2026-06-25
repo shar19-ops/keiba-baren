@@ -50,9 +50,10 @@ function ensureSheets() {
 
   if (!races) {
     races = ss.insertSheet('Races');
-    races.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake']);
+    races.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake', 'closed']);
   }
   ensureUnitStakeColumn_(races);
+  ensureClosedColumn_(races);
   if (!horses) {
     horses = ss.insertSheet('Horses');
     horses.appendRow(['id', 'raceId', 'name', 'waku', 'sortOrder']);
@@ -99,6 +100,23 @@ function ensureUnitStakeColumn_(racesSheet) {
 }
 
 /**
+ * 既存のRacesシートに closed 列が無い場合、末尾に追加し既存行をfalse（受付中）で補完する。
+ */
+function ensureClosedColumn_(racesSheet) {
+  var lastCol = racesSheet.getLastColumn();
+  var header = lastCol > 0 ? racesSheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  if (header.indexOf('closed') !== -1) return;
+  var col = lastCol + 1;
+  racesSheet.getRange(1, col).setValue('closed');
+  var lastRow = racesSheet.getLastRow();
+  if (lastRow > 1) {
+    var values = [];
+    for (var i = 0; i < lastRow - 1; i++) values.push([false]);
+    racesSheet.getRange(2, col, values.length, 1).setValues(values);
+  }
+}
+
+/**
  * 旧版（単一レース）のHorses/Votes/Metaを、複数レース対応の形式へ移行する。
  * 二重チェックロッキングで、同時実行による中途半端な移行状態の露出を防ぐ。
  */
@@ -127,8 +145,8 @@ function migrateToMultiRace_(ss) {
     // 2. Races シートに id=1 のレースを作成
     var racesSheet = ss.getSheetByName('Races') || ss.insertSheet('Races');
     racesSheet.clear();
-    racesSheet.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake']);
-    racesSheet.appendRow([1, oldRaceName || 'レース1', oldBetType, oldPosA, oldPosB, oldResultOrder, oldNextHorseId, new Date().toISOString(), 500]);
+    racesSheet.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake', 'closed']);
+    racesSheet.appendRow([1, oldRaceName || 'レース1', oldBetType, oldPosA, oldPosB, oldResultOrder, oldNextHorseId, new Date().toISOString(), 500, false]);
 
     // 3. Horses を raceId=1 付きで書き換え（既存の並び順を sortOrder として保持）
     var newHorseRows = horseRows.map(function (r, i) {
@@ -181,7 +199,7 @@ function setMetaValue(metaSheet, key, value) {
   metaSheet.appendRow([key, value]);
 }
 
-// Races列: 1=id 2=name 3=betType 4=umatanPosA 5=umatanPosB 6=resultOrder 7=nextHorseId 8=createdAt 9=unitStake
+// Races列: 1=id 2=name 3=betType 4=umatanPosA 5=umatanPosB 6=resultOrder 7=nextHorseId 8=createdAt 9=unitStake 10=closed
 function findRaceRow_(racesSheet, raceId) {
   var data = racesSheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
@@ -189,7 +207,7 @@ function findRaceRow_(racesSheet, raceId) {
       return {
         rowIndex: i + 1, id: data[i][0], name: data[i][1], betType: data[i][2],
         umatanPosA: data[i][3], umatanPosB: data[i][4], resultOrder: data[i][5],
-        nextHorseId: data[i][6], createdAt: data[i][7], unitStake: data[i][8]
+        nextHorseId: data[i][6], createdAt: data[i][7], unitStake: data[i][8], closed: data[i][9]
       };
     }
   }
@@ -242,7 +260,8 @@ function buildState(raceId) {
     result: { order: order },
     betType: raceRow.betType || 'umaren',
     umatanPositions: [Number(raceRow.umatanPosA) || 1, Number(raceRow.umatanPosB) || 2],
-    unitStake: Number(raceRow.unitStake) || 500
+    unitStake: Number(raceRow.unitStake) || 500,
+    closed: !!raceRow.closed
   };
 }
 
@@ -278,7 +297,8 @@ function buildRaceListFromSheets_(sh) {
       umatanPositions: [Number(r[3]) || 1, Number(r[4]) || 2],
       horseCount: horseCounts[id] || 0,
       voteCount: voteCounts[id] || 0,
-      hasResult: hasResult
+      hasResult: hasResult,
+      closed: !!r[9]
     };
   });
 }
@@ -304,7 +324,7 @@ function importAllData_(sh, races) {
       nextRaceId, String(r.raceName || '復元レース'), r.betType || 'umaren',
       Number(umatanPositions[0]) || 1, Number(umatanPositions[1]) || 2,
       JSON.stringify(resultOrder), maxHorseId + 1, new Date().toISOString(),
-      Number(r.unitStake) || 500
+      Number(r.unitStake) || 500, !!r.closed
     ]);
     setMetaValue(sh.meta, 'nextRaceId', nextRaceId + 1);
 
@@ -355,12 +375,16 @@ function doPost(e) {
     if (action === 'createRace') {
       var rname = String(body.name || '').trim();
       var nextRaceId = Number(getMetaValue(sh.meta, 'nextRaceId')) || 1;
-      sh.races.appendRow([nextRaceId, rname || ('レース' + nextRaceId), 'umaren', 1, 2, '[]', 1, new Date().toISOString(), 500]);
+      sh.races.appendRow([nextRaceId, rname || ('レース' + nextRaceId), 'umaren', 1, 2, '[]', 1, new Date().toISOString(), 500, false]);
       setMetaValue(sh.meta, 'nextRaceId', nextRaceId + 1);
       return jsonOutput({ races: buildRaceList() });
     }
     if (action === 'deleteRace') {
       deleteRaceCascade_(sh, raceId);
+      return jsonOutput({ races: buildRaceList() });
+    }
+    if (action === 'setRaceClosed') {
+      setRaceField_(sh.races, raceId, 10, !!body.closed);
       return jsonOutput({ races: buildRaceList() });
     }
     if (action === 'setDriveFolder') {
@@ -431,10 +455,14 @@ function doPost(e) {
       }
       if (orderChanged) setRaceField_(sh.races, raceId, 6, JSON.stringify(order));
     } else if (action === 'submitVote') {
+      var raceRowForVote = findRaceRow_(sh.races, raceId);
+      if (raceRowForVote && raceRowForVote.closed) return jsonOutput({ error: 'race_closed' });
       var vname = String(body.name || '').trim();
       var combos = body.combos || [];
       upsertVote(sh.votes, raceId, vname, combos);
     } else if (action === 'deleteVote') {
+      var raceRowForDel = findRaceRow_(sh.races, raceId);
+      if (raceRowForDel && raceRowForDel.closed) return jsonOutput({ error: 'race_closed' });
       deleteVoteRow(sh.votes, raceId, String(body.name || ''));
     } else if (action === 'setRaceName') {
       setRaceField_(sh.races, raceId, 2, String(body.raceName || ''));
