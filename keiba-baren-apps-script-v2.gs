@@ -263,6 +263,41 @@ function buildRaceListFromSheets_(sh) {
   });
 }
 
+function exportAllData_(sh) {
+  var raceIds = sh.races.getDataRange().getValues().slice(1)
+    .filter(function (r) { return r[0] !== '' && r[0] !== null && r[0] !== undefined; })
+    .map(function (r) { return Number(r[0]); });
+  var races = raceIds.map(function (id) { return buildState(id); }).filter(Boolean);
+  return { exportedAt: new Date().toISOString(), races: races };
+}
+
+function importAllData_(sh, races) {
+  races.forEach(function (r) {
+    var nextRaceId = Number(getMetaValue(sh.meta, 'nextRaceId')) || 1;
+    var horses = Array.isArray(r.horses) ? r.horses : [];
+    var votes = Array.isArray(r.votes) ? r.votes : [];
+    var umatanPositions = (Array.isArray(r.umatanPositions) && r.umatanPositions.length === 2) ? r.umatanPositions : [1, 2];
+    var resultOrder = (r.result && Array.isArray(r.result.order)) ? r.result.order : [];
+    var maxHorseId = horses.reduce(function (m, h) { return Math.max(m, Number(h.id) || 0); }, 0);
+
+    sh.races.appendRow([
+      nextRaceId, String(r.raceName || '復元レース'), r.betType || 'umaren',
+      Number(umatanPositions[0]) || 1, Number(umatanPositions[1]) || 2,
+      JSON.stringify(resultOrder), maxHorseId + 1, new Date().toISOString()
+    ]);
+    setMetaValue(sh.meta, 'nextRaceId', nextRaceId + 1);
+
+    horses.forEach(function (h, i) {
+      var waku = (h.waku === null || h.waku === undefined || h.waku === '') ? '' : Number(h.waku);
+      sh.horses.appendRow([Number(h.id), nextRaceId, String(h.name || ''), waku, i + 1]);
+    });
+    votes.forEach(function (v) {
+      sh.votes.appendRow([nextRaceId, String(v.name || ''), JSON.stringify(Array.isArray(v.combos) ? v.combos : []), new Date().toISOString()]);
+    });
+  });
+  return { races: buildRaceList() };
+}
+
 function jsonOutput(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -278,6 +313,9 @@ function doGet(e) {
     var state = buildState(raceId);
     if (!state) return jsonOutput({ error: 'race_not_found' });
     return jsonOutput(state);
+  }
+  if (action === 'exportAll') {
+    return jsonOutput(exportAllData_(ensureSheets()));
   }
   var sh = ensureSheets();
   return jsonOutput({ races: buildRaceListFromSheets_(sh), driveFolderId: getMetaValue(sh.meta, 'driveFolderId') });
@@ -315,6 +353,9 @@ function doPost(e) {
     if (action === 'exportResult') {
       return jsonOutput(exportResultToExcel_(sh, raceId, body));
     }
+    if (action === 'importAll') {
+      return jsonOutput(importAllData_(sh, Array.isArray(body.races) ? body.races : []));
+    }
 
     if (action === 'addHorse') {
       var hname = String(body.name || '').trim();
@@ -332,6 +373,10 @@ function doPost(e) {
       var hId = Number(body.id);
       var wVal = (body.waku === null || body.waku === undefined || body.waku === '') ? '' : Number(body.waku);
       setHorseWakuRow(sh.horses, raceId, hId, wVal);
+    } else if (action === 'setHorseName') {
+      var hnId = Number(body.id);
+      var newName = String(body.name || '').trim();
+      if (newName) setHorseNameRow(sh.horses, raceId, hnId, newName);
     } else if (action === 'reorderHorses') {
       reorderHorses_(sh.horses, raceId, body.orderedIds || []);
     } else if (action === 'setBetType') {
@@ -430,6 +475,16 @@ function setHorseWakuRow(sheet, raceId, id, waku) {
   for (var i = 1; i < data.length; i++) {
     if (Number(data[i][1]) === Number(raceId) && Number(data[i][0]) === id) {
       sheet.getRange(i + 1, 4).setValue(waku);
+      return;
+    }
+  }
+}
+
+function setHorseNameRow(sheet, raceId, id, name) {
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (Number(data[i][1]) === Number(raceId) && Number(data[i][0]) === id) {
+      sheet.getRange(i + 1, 3).setValue(name);
       return;
     }
   }

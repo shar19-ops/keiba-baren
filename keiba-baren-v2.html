@@ -81,6 +81,8 @@
   .horse-li:last-child{border-bottom:none;}
   .horse-li:nth-child(even){background:#f8faf9;}
   .horse-nm{flex:1;font-size:15px;font-weight:600;}
+  .horse-nm-input{flex:1;font-size:15px;font-weight:600;padding:6px 8px;border:1px solid transparent;border-radius:8px;background:transparent;}
+  .horse-nm-input:focus{background:#fff;border-color:var(--line);box-shadow:none;}
   .horse-del{flex:0;background:#fde8e8;color:var(--danger);border:none;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer;}
   .horse-move{flex:0;background:#eef2f0;color:var(--green);border:none;border-radius:8px;width:28px;height:32px;font-size:13px;cursor:pointer;}
   .horse-move:disabled{opacity:.25;cursor:default;}
@@ -158,6 +160,14 @@
         <button class="btn btn-green" id="createRaceBtn" style="flex:0 0 80px">作成</button>
       </div>
       <div class="hint">作成すると自動でそのレースが選択されます。</div>
+    </div>
+
+    <div class="card">
+      <h2>📦 レース一覧のバックアップ</h2>
+      <button class="btn btn-green btn-block" id="exportBackupBtn">💾 全レースをバックアップ（ダウンロード）</button>
+      <button class="btn btn-ghost btn-block" id="importBackupBtn" style="margin-top:8px">📂 バックアップから復元（追加）</button>
+      <input type="file" id="backupFileInput" accept="application/json,.json" style="display:none">
+      <div class="hint">出走馬・投票・結果を含む全レースをJSONファイルとして保存できます。復元は既存のレースを残したまま、ファイルの内容を新しいレースとして追加します（上書きはされません）。</div>
     </div>
 
     <div class="card" id="raceQrCard" style="display:none">
@@ -627,13 +637,20 @@ function renderHorseList(){
   if(state.horses.length===0){el.innerHTML='<div class="empty" style="padding:16px">まだ出走馬がいません</div>';renderVoteHorseList();return;}
   el.innerHTML = state.horses.map((h,i)=>
     `<div class="horse-li"><span class="horse-num">${i+1}</span>
-      <span class="horse-nm">${escapeHtml(h.name)}</span>
+      <input type="text" class="horse-nm-input" data-id="${h.id}" value="${escapeHtml(h.name)}">
       <input type="number" class="horse-waku" data-id="${h.id}" value="${h.waku!=null?h.waku:''}" min="1" max="8" placeholder="枠">
       <button class="horse-move" data-dir="up" data-id="${h.id}" ${i===0?'disabled':''}>▲</button>
       <button class="horse-move" data-dir="down" data-id="${h.id}" ${i===state.horses.length-1?'disabled':''}>▼</button>
       <button class="horse-del" data-id="${h.id}">✕</button></div>`
   ).join('');
   el.querySelectorAll('.horse-del').forEach(b=>b.addEventListener('click',()=>removeHorse(+b.dataset.id)));
+  el.querySelectorAll('.horse-nm-input').forEach(inp=>inp.addEventListener('change',async ()=>{
+    const newName=inp.value.trim();
+    const h=state.horses.find(x=>x.id===+inp.dataset.id);
+    if(!newName){ inp.value=h?h.name:''; toast('馬名は空にできません'); return; }
+    if(h&&newName===h.name)return;
+    await sendRaceAction('setHorseName',{id:+inp.dataset.id,name:newName});
+  }));
   el.querySelectorAll('.horse-waku').forEach(inp=>inp.addEventListener('change',async ()=>{
     const wv=inp.value;
     await sendRaceAction('setHorseWaku',{id:+inp.dataset.id,waku:wv===''?null:+wv});
@@ -672,6 +689,43 @@ $('resetAll').addEventListener('click',async ()=>{
 });
 
 /* ---------- RACE管理 ---------- */
+$('exportBackupBtn').addEventListener('click',exportBackup);
+async function exportBackup(){
+  if(!apiUrl){toast('先に「設定」で共有先URLを登録してください');return;}
+  try{
+    toast('バックアップを作成中…');
+    const data = await apiGet({action:'exportAll'});
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const ts = new Date().toISOString().replace(/[:.]/g,'-');
+    const a = document.createElement('a');
+    a.href=url; a.download=`keiba-baren-backup_${ts}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast('バックアップを保存しました');
+  }catch(e){
+    toast('バックアップの作成に失敗しました');
+  }
+}
+$('importBackupBtn').addEventListener('click',()=>$('backupFileInput').click());
+$('backupFileInput').addEventListener('change',async (e)=>{
+  const file=e.target.files[0];
+  e.target.value='';
+  if(!file)return;
+  if(!apiUrl){toast('先に「設定」で共有先URLを登録してください');return;}
+  try{
+    const text=await file.text();
+    const data=JSON.parse(text);
+    if(!Array.isArray(data.races)){toast('ファイルの形式が正しくありません');return;}
+    if(!confirm(`${data.races.length}件のレースを追加で復元します。よろしいですか？`))return;
+    toast('復元中…');
+    const res=await apiPost('importAll',{races:data.races});
+    applyRaceList(res);
+    toast('復元しました');
+  }catch(e){
+    toast('復元に失敗しました（ファイル形式を確認してください）');
+  }
+});
 $('createRaceBtn').addEventListener('click',createRace);
 $('newRaceName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();createRace();}});
 async function createRace(){
