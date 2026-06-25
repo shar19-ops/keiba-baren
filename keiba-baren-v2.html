@@ -490,7 +490,9 @@ async function refreshRaceList(showError){
   try{
     const s=await apiGet({action:'listRaces'});
     applyRaceList(s);
+    setSyncStatus('同期済み',true);
   }catch(e){
+    setSyncStatus('接続エラー',false);
     if(showError)toast('レース一覧の取得に失敗しました');
   }
 }
