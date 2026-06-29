@@ -325,6 +325,7 @@
           <select id="secondPlace"></select>
         </div>
       </div>
+      <div class="hint" id="resultLockHint" style="display:none">🔒 結果の入力は幹事のみ操作できます（投票・集計の閲覧は誰でも可能です）。</div>
       <button class="btn btn-green btn-block" id="calcBtn" style="margin-top:12px">集計する</button>
       <div class="hint" id="tallyHint">馬連は1着・2着の組み合わせ（順不同）が的中です。</div>
     </div>
@@ -582,6 +583,7 @@ function tryUnlockWith(passwordInputId){
     $(passwordInputId).value='';
     showSetupContent(true);
     showRaceLockUI(true);
+    renderResultUI();
     toast('ロックを解除しました');
   }else{
     toast('パスワードが違います');
@@ -1029,10 +1031,13 @@ function renderResultUI(){
   const[posA,posB]=activePositions();
   $('resultPosALabel').textContent=posA+'着';
   $('resultPosBLabel').textContent=posB+'着';
+  const unlocked=isSetupUnlocked();
+  $('resultLockHint').style.display=unlocked?'none':'';
   ['firstPlace','secondPlace'].forEach((id,i)=>{
     const el=$(id); if(document.activeElement===el)return;
     const current = i===0?resultAt(posA):resultAt(posB);
     el.innerHTML=horseOptions(current);
+    el.disabled=!unlocked;
   });
 }
 $('firstPlace').addEventListener('change',async e=>{
