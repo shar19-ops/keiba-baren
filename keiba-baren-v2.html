@@ -818,14 +818,14 @@ function renderVoteHorseList(){
   const hasWaku=state.betType==='wakuren'||state.horses.some(h=>h.waku!=null);
   el.innerHTML=`<table class="odds-table">
     <thead><tr>
-      <th style="text-align:center">番</th>
       ${hasWaku?'<th style="text-align:center">枠</th>':''}
+      <th style="text-align:center">番</th>
       <th style="text-align:left;padding-left:10px">出走者名</th>
       ${isHande?'<th style="text-align:right">HC</th>':''}
     </tr></thead>
     <tbody>${state.horses.map((h,i)=>`<tr>
-      <td class="odds-uma-num">${i+1}</td>
       ${hasWaku?`<td class="odds-waku-col">${h.waku!=null?`<span class="odds-waku-badge" style="${wakuBadgeStyle(h.waku)}">${h.waku}</span>`:''}</td>`:''}
+      <td class="odds-uma-num">${i+1}</td>
       <td class="odds-name">${escapeHtml(h.name)}</td>
       ${isHande?`<td class="odds-hc">${h.hande!=null?`HC${h.hande}`:''}</td>`:''}
     </tr>`).join('')}</tbody>
