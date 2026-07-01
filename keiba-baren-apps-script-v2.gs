@@ -50,14 +50,16 @@ function ensureSheets() {
 
   if (!races) {
     races = ss.insertSheet('Races');
-    races.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake', 'closed']);
+    races.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake', 'closed', 'gameStyle']);
   }
   ensureUnitStakeColumn_(races);
   ensureClosedColumn_(races);
+  ensureGameStyleColumn_(races);
   if (!horses) {
     horses = ss.insertSheet('Horses');
-    horses.appendRow(['id', 'raceId', 'name', 'waku', 'sortOrder']);
+    horses.appendRow(['id', 'raceId', 'name', 'waku', 'sortOrder', 'hande']);
   }
+  ensureHandeColumn_(horses);
   if (!votes) {
     votes = ss.insertSheet('Votes');
     votes.appendRow(['raceId', 'name', 'combosJson', 'updatedAt']);
@@ -117,6 +119,40 @@ function ensureClosedColumn_(racesSheet) {
 }
 
 /**
+ * 既存のRacesシートに gameStyle 列が無い場合、末尾に追加し既存行を'shinperia'で補完する。
+ */
+function ensureGameStyleColumn_(racesSheet) {
+  var lastCol = racesSheet.getLastColumn();
+  var header = lastCol > 0 ? racesSheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  if (header.indexOf('gameStyle') !== -1) return;
+  var col = lastCol + 1;
+  racesSheet.getRange(1, col).setValue('gameStyle');
+  var lastRow = racesSheet.getLastRow();
+  if (lastRow > 1) {
+    var values = [];
+    for (var i = 0; i < lastRow - 1; i++) values.push(['shinperia']);
+    racesSheet.getRange(2, col, values.length, 1).setValues(values);
+  }
+}
+
+/**
+ * 既存のHorsesシートに hande 列が無い場合、末尾に追加し既存行を空で補完する。
+ */
+function ensureHandeColumn_(horsesSheet) {
+  var lastCol = horsesSheet.getLastColumn();
+  var header = lastCol > 0 ? horsesSheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  if (header.indexOf('hande') !== -1) return;
+  var col = lastCol + 1;
+  horsesSheet.getRange(1, col).setValue('hande');
+  var lastRow = horsesSheet.getLastRow();
+  if (lastRow > 1) {
+    var values = [];
+    for (var i = 0; i < lastRow - 1; i++) values.push(['']);
+    horsesSheet.getRange(2, col, values.length, 1).setValues(values);
+  }
+}
+
+/**
  * 旧版（単一レース）のHorses/Votes/Metaを、複数レース対応の形式へ移行する。
  * 二重チェックロッキングで、同時実行による中途半端な移行状態の露出を防ぐ。
  */
@@ -145,17 +181,17 @@ function migrateToMultiRace_(ss) {
     // 2. Races シートに id=1 のレースを作成
     var racesSheet = ss.getSheetByName('Races') || ss.insertSheet('Races');
     racesSheet.clear();
-    racesSheet.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake', 'closed']);
-    racesSheet.appendRow([1, oldRaceName || 'レース1', oldBetType, oldPosA, oldPosB, oldResultOrder, oldNextHorseId, new Date().toISOString(), 500, false]);
+    racesSheet.appendRow(['id', 'name', 'betType', 'umatanPosA', 'umatanPosB', 'resultOrder', 'nextHorseId', 'createdAt', 'unitStake', 'closed', 'gameStyle']);
+    racesSheet.appendRow([1, oldRaceName || 'レース1', oldBetType, oldPosA, oldPosB, oldResultOrder, oldNextHorseId, new Date().toISOString(), 500, false, 'shinperia']);
 
     // 3. Horses を raceId=1 付きで書き換え（既存の並び順を sortOrder として保持）
     var newHorseRows = horseRows.map(function (r, i) {
       var waku = (r[2] === '' || r[2] === null || r[2] === undefined) ? '' : r[2];
-      return [r[0], 1, r[1], waku, i + 1];
+      return [r[0], 1, r[1], waku, i + 1, ''];
     });
     horses.clear();
-    horses.appendRow(['id', 'raceId', 'name', 'waku', 'sortOrder']);
-    if (newHorseRows.length > 0) horses.getRange(2, 1, newHorseRows.length, 5).setValues(newHorseRows);
+    horses.appendRow(['id', 'raceId', 'name', 'waku', 'sortOrder', 'hande']);
+    if (newHorseRows.length > 0) horses.getRange(2, 1, newHorseRows.length, 6).setValues(newHorseRows);
 
     // 4. Votes を raceId=1 付きで書き換え
     if (votes) {
@@ -199,7 +235,8 @@ function setMetaValue(metaSheet, key, value) {
   metaSheet.appendRow([key, value]);
 }
 
-// Races列: 1=id 2=name 3=betType 4=umatanPosA 5=umatanPosB 6=resultOrder 7=nextHorseId 8=createdAt 9=unitStake 10=closed
+// Races列: 1=id 2=name 3=betType 4=umatanPosA 5=umatanPosB 6=resultOrder 7=nextHorseId 8=createdAt 9=unitStake 10=closed 11=gameStyle
+// Horses列: 1=id 2=raceId 3=name 4=waku 5=sortOrder 6=hande
 function findRaceRow_(racesSheet, raceId) {
   var data = racesSheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
@@ -207,7 +244,8 @@ function findRaceRow_(racesSheet, raceId) {
       return {
         rowIndex: i + 1, id: data[i][0], name: data[i][1], betType: data[i][2],
         umatanPosA: data[i][3], umatanPosB: data[i][4], resultOrder: data[i][5],
-        nextHorseId: data[i][6], createdAt: data[i][7], unitStake: data[i][8], closed: data[i][9]
+        nextHorseId: data[i][6], createdAt: data[i][7], unitStake: data[i][8],
+        closed: data[i][9], gameStyle: data[i][10] || 'shinperia'
       };
     }
   }
@@ -236,7 +274,8 @@ function buildState(raceId) {
   horseRows.sort(function (a, b) { return (Number(a[4]) || 0) - (Number(b[4]) || 0); });
   var horses = horseRows.map(function (r) {
     var waku = (r[3] === '' || r[3] === null || r[3] === undefined) ? null : Number(r[3]);
-    return { id: Number(r[0]), name: String(r[2]), waku: waku };
+    var hande = (r[5] === '' || r[5] === null || r[5] === undefined) ? null : Number(r[5]);
+    return { id: Number(r[0]), name: String(r[2]), waku: waku, hande: hande };
   });
 
   var voteRows = sh.votes.getDataRange().getValues().slice(1)
@@ -261,7 +300,8 @@ function buildState(raceId) {
     betType: raceRow.betType || 'umaren',
     umatanPositions: [Number(raceRow.umatanPosA) || 1, Number(raceRow.umatanPosB) || 2],
     unitStake: Number(raceRow.unitStake) || 500,
-    closed: !!raceRow.closed
+    closed: !!raceRow.closed,
+    gameStyle: raceRow.gameStyle || 'shinperia'
   };
 }
 
@@ -298,7 +338,8 @@ function buildRaceListFromSheets_(sh) {
       horseCount: horseCounts[id] || 0,
       voteCount: voteCounts[id] || 0,
       hasResult: hasResult,
-      closed: !!r[9]
+      closed: !!r[9],
+      gameStyle: r[10] || 'shinperia'
     };
   });
 }
@@ -320,17 +361,20 @@ function importAllData_(sh, races) {
     var resultOrder = (r.result && Array.isArray(r.result.order)) ? r.result.order : [];
     var maxHorseId = horses.reduce(function (m, h) { return Math.max(m, Number(h.id) || 0); }, 0);
 
+    var gs = String(r.gameStyle || 'shinperia');
+    if (['shinperia', 'hande'].indexOf(gs) === -1) gs = 'shinperia';
     sh.races.appendRow([
       nextRaceId, String(r.raceName || '復元レース'), r.betType || 'umaren',
       Number(umatanPositions[0]) || 1, Number(umatanPositions[1]) || 2,
       JSON.stringify(resultOrder), maxHorseId + 1, new Date().toISOString(),
-      Number(r.unitStake) || 500, !!r.closed
+      Number(r.unitStake) || 500, !!r.closed, gs
     ]);
     setMetaValue(sh.meta, 'nextRaceId', nextRaceId + 1);
 
     horses.forEach(function (h, i) {
       var waku = (h.waku === null || h.waku === undefined || h.waku === '') ? '' : Number(h.waku);
-      sh.horses.appendRow([Number(h.id), nextRaceId, String(h.name || ''), waku, i + 1]);
+      var hande = (h.hande === null || h.hande === undefined || h.hande === '') ? '' : Number(h.hande);
+      sh.horses.appendRow([Number(h.id), nextRaceId, String(h.name || ''), waku, i + 1, hande]);
     });
     votes.forEach(function (v) {
       sh.votes.appendRow([nextRaceId, String(v.name || ''), JSON.stringify(Array.isArray(v.combos) ? v.combos : []), new Date().toISOString()]);
@@ -375,7 +419,7 @@ function doPost(e) {
     if (action === 'createRace') {
       var rname = String(body.name || '').trim();
       var nextRaceId = Number(getMetaValue(sh.meta, 'nextRaceId')) || 1;
-      sh.races.appendRow([nextRaceId, rname || ('レース' + nextRaceId), 'umaren', 1, 2, '[]', 1, new Date().toISOString(), 500, false]);
+      sh.races.appendRow([nextRaceId, rname || ('レース' + nextRaceId), 'umaren', 1, 2, '[]', 1, new Date().toISOString(), 500, false, 'shinperia']);
       setMetaValue(sh.meta, 'nextRaceId', nextRaceId + 1);
       return jsonOutput({ races: buildRaceList() });
     }
@@ -409,8 +453,9 @@ function doPost(e) {
         if (raceRow) {
           var nextHorseId = Number(raceRow.nextHorseId) || 1;
           var wakuVal = (body.waku === null || body.waku === undefined || body.waku === '') ? '' : Number(body.waku);
+          var handeVal = (body.hande === null || body.hande === undefined || body.hande === '') ? '' : Number(body.hande);
           var maxSort = getMaxSortOrder_(sh.horses, raceId);
-          sh.horses.appendRow([nextHorseId, Number(raceId), hname, wakuVal, maxSort + 1]);
+          sh.horses.appendRow([nextHorseId, Number(raceId), hname, wakuVal, maxSort + 1, handeVal]);
           setRaceField_(sh.races, raceId, 7, nextHorseId + 1);
         }
       }
@@ -422,6 +467,14 @@ function doPost(e) {
       var hnId = Number(body.id);
       var newName = String(body.name || '').trim();
       if (newName) setHorseNameRow(sh.horses, raceId, hnId, newName);
+    } else if (action === 'setHorseHande') {
+      var hhId = Number(body.id);
+      var hhVal = (body.hande === null || body.hande === undefined || body.hande === '') ? '' : Number(body.hande);
+      setHorseHandeRow_(sh.horses, raceId, hhId, hhVal);
+    } else if (action === 'setGameStyle') {
+      var gs = String(body.gameStyle || 'shinperia');
+      if (['shinperia', 'hande'].indexOf(gs) === -1) gs = 'shinperia';
+      setRaceField_(sh.races, raceId, 11, gs);
     } else if (action === 'reorderHorses') {
       reorderHorses_(sh.horses, raceId, body.orderedIds || []);
     } else if (action === 'setBetType') {
@@ -537,6 +590,16 @@ function setHorseNameRow(sheet, raceId, id, name) {
   for (var i = 1; i < data.length; i++) {
     if (Number(data[i][1]) === Number(raceId) && Number(data[i][0]) === id) {
       sheet.getRange(i + 1, 3).setValue(name);
+      return;
+    }
+  }
+}
+
+function setHorseHandeRow_(sheet, raceId, id, hande) {
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (Number(data[i][1]) === Number(raceId) && Number(data[i][0]) === id) {
+      sheet.getRange(i + 1, 6).setValue(hande);
       return;
     }
   }

@@ -252,6 +252,15 @@
       </div>
 
       <div class="card">
+        <h2>🏌️ 競技方式</h2>
+        <div class="segmented" id="gameStyleSegmented">
+          <label><input type="radio" name="gameStyle" value="shinperia"><span>新ペリア</span></label>
+          <label><input type="radio" name="gameStyle" value="hande"><span>ハンデ</span></label>
+        </div>
+        <div class="hint">新ペリア：出走者名のみ入力。ハンデ：出走者ごとにハンデキャップを設定できます。</div>
+      </div>
+
+      <div class="card">
         <h2>🎯 投票方式</h2>
         <div class="segmented" id="betTypeSegmented">
           <label><input type="radio" name="betType" value="umaren"><span>馬連</span></label>
@@ -277,11 +286,12 @@
       <div class="card">
         <h2>🐴 出走馬を入力 <span class="badge" id="horseCount">0頭</span></h2>
         <div class="row">
-          <input type="text" id="horseInput" placeholder="馬の名前を入力" autocomplete="off">
-          <input type="number" id="horseWakuInput" placeholder="枠" min="1" max="8" style="flex:0 0 56px">
+          <input type="text" id="horseInput" placeholder="出走者名" autocomplete="off">
+          <input type="number" id="horseHandeInput" placeholder="HC" min="-99" max="99" step="0.5" style="flex:0 0 60px;display:none">
+          <input type="number" id="horseWakuInput" placeholder="枠" min="1" max="8" style="flex:0 0 48px">
           <button class="btn btn-green" id="addHorse" style="flex:0 0 70px">追加</button>
         </div>
-        <div class="hint">名前を入れて追加。枠番は任意（後から各馬の欄で変更できます）。▲▼で並べ替えると馬番が変わります。</div>
+        <div class="hint" id="horseInputHint">名前を入れて追加。枠番は任意（後から各馬の欄で変更できます）。▲▼で並べ替えると馬番が変わります。</div>
         <div class="horse-listbox" id="horseList"></div>
       </div>
 
@@ -383,7 +393,7 @@ let driveFolderId = '';
     toast(fromRace ? 'QRコードから共有設定・レースを読み込みました' : 'QRコードから共有設定を読み込みました');
   }
 }
-function emptyState(){ return { raceId:null, raceName:'', horses:[], votes:[], result:{order:[]}, betType:'umaren', umatanPositions:[1,2], unitStake:DEFAULT_UNIT_STAKE, closed:false }; }
+function emptyState(){ return { raceId:null, raceName:'', horses:[], votes:[], result:{order:[]}, betType:'umaren', umatanPositions:[1,2], unitStake:DEFAULT_UNIT_STAKE, closed:false, gameStyle:'shinperia' }; }
 let state = emptyState();
 let raceList = [];
 let pollTimer = null;
@@ -510,7 +520,8 @@ function applyRaceState(s){
     betType:s.betType||'umaren',
     umatanPositions:(Array.isArray(s.umatanPositions)&&s.umatanPositions.length===2)?s.umatanPositions.map(Number):[1,2],
     unitStake:Number(s.unitStake)||DEFAULT_UNIT_STAKE,
-    closed:!!s.closed
+    closed:!!s.closed,
+    gameStyle:s.gameStyle||'shinperia'
   };
   saveCache();
   renderAll();
@@ -712,11 +723,13 @@ $('addHorse').addEventListener('click',addHorse);
 $('horseInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addHorse();}});
 async function addHorse(){
   const v=$('horseInput').value.trim();
-  if(!v){toast('馬名を入力してください');return;}
+  if(!v){toast('出走者名を入力してください');return;}
   const wv=$('horseWakuInput').value;
   const waku=wv===''?null:+wv;
-  $('horseInput').value=''; $('horseWakuInput').value='';
-  const ok=await sendRaceAction('addHorse',{name:v,waku});
+  const hv=$('horseHandeInput').value;
+  const hande=(state.gameStyle==='hande'&&hv!=='')?+hv:null;
+  $('horseInput').value=''; $('horseWakuInput').value=''; $('horseHandeInput').value='';
+  const ok=await sendRaceAction('addHorse',{name:v,waku,hande});
   if(ok)$('horseInput').focus();
 }
 function renderHorseList(){
@@ -724,9 +737,11 @@ function renderHorseList(){
   $('horseCount').textContent=state.horses.length+'頭';
   if(el.contains(document.activeElement))return;
   if(state.horses.length===0){el.innerHTML='<div class="empty" style="padding:16px">まだ出走馬がいません</div>';renderVoteHorseList();return;}
+  const isHande=state.gameStyle==='hande';
   el.innerHTML = state.horses.map((h,i)=>
     `<div class="horse-li"><span class="horse-num">${i+1}</span>
       <input type="text" class="horse-nm-input" data-id="${h.id}" value="${escapeHtml(h.name)}">
+      ${isHande?`<input type="number" class="horse-hande" data-id="${h.id}" value="${h.hande!=null?h.hande:''}" placeholder="HC" min="-99" max="99" step="0.5" style="flex:0 0 56px;padding:6px 4px;font-size:13px;text-align:center;border:1px solid var(--line);border-radius:8px;">`:''}
       <input type="number" class="horse-waku" data-id="${h.id}" value="${h.waku!=null?h.waku:''}" min="1" max="8" placeholder="枠">
       <button class="horse-move" data-dir="up" data-id="${h.id}" ${i===0?'disabled':''}>▲</button>
       <button class="horse-move" data-dir="down" data-id="${h.id}" ${i===state.horses.length-1?'disabled':''}>▼</button>
@@ -736,9 +751,13 @@ function renderHorseList(){
   el.querySelectorAll('.horse-nm-input').forEach(inp=>inp.addEventListener('change',async ()=>{
     const newName=inp.value.trim();
     const h=state.horses.find(x=>x.id===+inp.dataset.id);
-    if(!newName){ inp.value=h?h.name:''; toast('馬名は空にできません'); return; }
+    if(!newName){ inp.value=h?h.name:''; toast('出走者名は空にできません'); return; }
     if(h&&newName===h.name)return;
     await sendRaceAction('setHorseName',{id:+inp.dataset.id,name:newName});
+  }));
+  el.querySelectorAll('.horse-hande').forEach(inp=>inp.addEventListener('change',async ()=>{
+    const hv=inp.value;
+    await sendRaceAction('setHorseHande',{id:+inp.dataset.id,hande:hv===''?null:+hv});
   }));
   el.querySelectorAll('.horse-waku').forEach(inp=>inp.addEventListener('change',async ()=>{
     const wv=inp.value;
@@ -763,7 +782,7 @@ function renderVoteHorseList(){
     el.innerHTML='<div class="muted">出走馬は未登録です。幹事にご連絡ください。</div>';return;
   }
   el.innerHTML = state.horses.map((h,i)=>
-    `<span class="chip"><span class="horse-num">${i+1}</span>${escapeHtml(h.name)}${h.waku!=null?`<span class="waku-badge">${h.waku}枠</span>`:''}</span>`
+    `<span class="chip"><span class="horse-num">${i+1}</span>${escapeHtml(h.name)}${h.waku!=null?`<span class="waku-badge">${h.waku}枠</span>`:''}${state.gameStyle==='hande'&&h.hande!=null?`<span class="waku-badge" style="background:var(--green2)">HC${h.hande}</span>`:''}</span>`
   ).join('');
 }
 async function removeHorse(id){
@@ -924,10 +943,11 @@ async function toggleRaceClosed(id,currentlyClosed){
 
 /* ---------- VOTE ---------- */
 function horseOptions(selectedId){
-  let o='<option value="">— 馬を選択 —</option>';
+  let o='<option value="">— 選択 —</option>';
   state.horses.forEach((h,i)=>{
     const wk=h.waku!=null?`（${h.waku}枠）`:'';
-    o+=`<option value="${h.id}"${String(selectedId)===String(h.id)?' selected':''}>${i+1}. ${escapeHtml(h.name)}${wk}</option>`;
+    const hc=state.gameStyle==='hande'&&h.hande!=null?` HC${h.hande}`:'';
+    o+=`<option value="${h.id}"${String(selectedId)===String(h.id)?' selected':''}>${i+1}. ${escapeHtml(h.name)}${wk}${hc}</option>`;
   });
   return o;
 }
@@ -1053,7 +1073,7 @@ function renderVoteList(){
     return `<div class="vote-item">
       <div class="top"><span class="name">${escapeHtml(v.name)}</span>
         <span><span class="badge">${v.combos.length}点 / ${stake}pt</span>
-        ${state.closed?'':`<button class="btn btn-danger btn-sm" data-name="${escapeHtml(v.name)}" style="margin-left:6px">削除</button>`}</span>
+        ${isSetupUnlocked()&&!state.closed?`<button class="btn btn-danger btn-sm" data-name="${escapeHtml(v.name)}" style="margin-left:6px">削除</button>`:''}</span>
       </div>
       <div>${pairs}</div>
     </div>`;
@@ -1201,6 +1221,26 @@ async function exportToExcel(){
   }
 }
 
+/* ---------- 競技方式 ---------- */
+function renderGameStyleUI(){
+  document.querySelectorAll('#gameStyleSegmented input[name="gameStyle"]').forEach(inp=>{
+    inp.checked = inp.value===state.gameStyle;
+    inp.closest('label').classList.toggle('checked', inp.checked);
+  });
+  const isHande = state.gameStyle==='hande';
+  $('horseHandeInput').style.display = isHande?'':'none';
+  $('horseInputHint').textContent = isHande
+    ? '名前とハンデキャップを入れて追加。▲▼で並べ替えると馬番が変わります。'
+    : '名前を入れて追加。枠番は任意（後から各馬の欄で変更できます）。▲▼で並べ替えると馬番が変わります。';
+}
+document.querySelectorAll('#gameStyleSegmented input[name="gameStyle"]').forEach(inp=>{
+  inp.addEventListener('change',async ()=>{
+    const newStyle=inp.value;
+    if(newStyle===state.gameStyle)return;
+    await sendRaceAction('setGameStyle',{gameStyle:newStyle},'競技方式を変更しました');
+  });
+});
+
 /* ---------- 投票方式 ---------- */
 function renderBetTypeUI(){
   document.querySelectorAll('#betTypeSegmented input[name="betType"]').forEach(inp=>{
@@ -1252,6 +1292,7 @@ document.querySelectorAll('#betTypeSegmented input[name="betType"]').forEach(inp
 function renderAll(){
   renderRaceName();
   renderUnitStake();
+  renderGameStyleUI();
   renderHorseList();
   renderBetTypeUI();
   renderSetupRaceLabel();
@@ -1279,6 +1320,7 @@ function initUI(){
   showOrganizerTabs(isSetupUnlocked());
   renderRaceName();
   renderUnitStake();
+  renderGameStyleUI();
   renderHorseList();
   renderBetTypeUI();
   renderSetupRaceLabel();
