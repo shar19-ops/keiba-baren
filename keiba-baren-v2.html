@@ -134,11 +134,36 @@
   .race-card-name{font-weight:700;font-size:15px;}
   .race-card-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
   .race-card-actions .btn{flex:1;min-width:90px;}
+  .organizer-toggle{
+    display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;
+    background:rgba(255,255,255,.15);border-radius:20px;padding:5px 12px;
+    user-select:none;white-space:nowrap;flex:0 0 auto;
+  }
+  .organizer-toggle input[type=checkbox]{
+    width:16px;height:16px;cursor:pointer;accent-color:var(--accent);flex:0 0 16px;
+  }
+  .organizer-tab.hidden-tab{display:none;}
+  .pw-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;
+    display:flex;align-items:center;justify-content:center;padding:16px;
+  }
+  .pw-dialog{
+    background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:320px;
+    box-shadow:0 8px 32px rgba(0,0,0,.3);
+  }
+  .pw-title{font-size:17px;font-weight:800;color:var(--green);text-align:center;margin-bottom:16px;}
+  .pw-actions{display:flex;gap:8px;margin-top:4px;}
+  .pw-actions .btn{flex:1;}
 </style>
 </head>
 <body>
 <header>
-  <h1>🐎 馬券 投票・集計</h1>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <h1>🐎 馬券 投票・集計</h1>
+    <label class="organizer-toggle" title="幹事モード">
+      <input type="checkbox" id="organizerCheck" autocomplete="off">幹事
+    </label>
+  </div>
   <div class="race-row">
     <div class="race" id="raceLabel">レース未選択</div>
     <div class="sync-status bad" id="apiStatus">未接続</div>
@@ -147,22 +172,14 @@
 <div class="tabs">
   <button class="tab active" data-view="vote">投票</button>
   <button class="tab" data-view="tally">集計</button>
-  <button class="tab" data-view="race">レース</button>
-  <button class="tab" data-view="setup">設定</button>
+  <button class="tab organizer-tab hidden-tab" data-view="race">レース</button>
+  <button class="tab organizer-tab hidden-tab" data-view="setup">設定</button>
 </div>
 
 <main>
   <!-- ===== RACE ===== -->
   <section class="view" id="view-race">
-    <div class="card lock-card" id="raceLock">
-      <div class="icon">🔒</div>
-      <h2 style="justify-content:center">レースの追加・削除は幹事のみ操作できます</h2>
-      <input type="password" id="racePassword" placeholder="パスワード" autocomplete="off" style="margin:10px 0">
-      <button class="btn btn-primary btn-block" id="unlockRace">解除する</button>
-      <div class="hint">投票するレースへの参加は、幹事から共有されたQRコードを読み取ってください。レースの一覧からの選択・追加・削除・QR発行・バックアップ操作には幹事用パスワードが必要です。</div>
-    </div>
-
-    <div id="raceAdminControls" style="display:none">
+    <div id="raceAdminControls">
       <div class="card">
         <h2>➕ 新しいレースを追加</h2>
         <div class="row">
@@ -198,15 +215,7 @@
 
   <!-- ===== SETUP ===== -->
   <section class="view" id="view-setup">
-    <div class="card lock-card" id="setupLock">
-      <div class="icon">🔒</div>
-      <h2 style="justify-content:center">設定はパスワードで保護されています</h2>
-      <input type="password" id="setupPassword" placeholder="パスワード" autocomplete="off" style="margin:10px 0">
-      <button class="btn btn-primary btn-block" id="unlockSetup">解除する</button>
-      <div class="hint">幹事から共有されたパスワードを入力してください。</div>
-    </div>
-
-    <div id="setupContent" style="display:none">
+    <div id="setupContent">
       <div class="card">
         <h2>🔗 共有設定</h2>
         <label>Google Apps Script の公開URL</label>
@@ -334,6 +343,18 @@
 </main>
 
 <div class="toast" id="toast"></div>
+
+<div class="pw-overlay" id="pwOverlay" style="display:none">
+  <div class="pw-dialog">
+    <div class="pw-title">🔑 幹事モード</div>
+    <input type="password" id="organizerPassword" placeholder="パスワード" autocomplete="off"
+      style="text-align:center;letter-spacing:2px;margin-bottom:14px">
+    <div class="pw-actions">
+      <button class="btn btn-ghost" id="pwCancel">キャンセル</button>
+      <button class="btn btn-primary" id="pwConfirm">解除</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const LS_URL_KEY = 'baren_api_url';
@@ -476,7 +497,7 @@ function applyRaceState(s){
       localStorage.removeItem(LS_RACE_ID_KEY);
       state=emptyState();
       renderAll();
-      switchTab('race');
+      switchTab(isSetupUnlocked()?'race':'vote');
     }
     return;
   }
@@ -530,7 +551,7 @@ async function refreshRaceList(showError){
 const ACTION_ERROR_MESSAGES = { race_closed:'このレースは締め切られています', race_not_found:'このレースは見つかりません' };
 async function sendRaceAction(action,payload,okMsg){
   if(!apiUrl){toast('先に「設定」で共有先URLを登録してください');return false;}
-  if(!currentRaceId){toast('「レース」タブでレースを選択してください');return false;}
+  if(!currentRaceId){toast('参加するには幹事から共有されたQRコードを読み取ってください');return false;}
   try{
     setSyncStatus('送信中…',true);
     const s=await apiPost(action,Object.assign({raceId:currentRaceId},payload||{}));
@@ -564,35 +585,57 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('focus',()=>{ if(apiUrl)refresh(false); });
 
-/* ---------- 幹事用パスワード保護（設定タブ・レースタブ共通） ---------- */
+/* ---------- 幹事用パスワード保護（ヘッダーチェックボックス） ---------- */
 function isSetupUnlocked(){ return sessionStorage.getItem(LS_UNLOCK_KEY)==='1'; }
-function showSetupContent(unlocked){
-  $('setupLock').style.display = unlocked?'none':'';
-  $('setupContent').style.display = unlocked?'':'none';
-}
-function showRaceLockUI(unlocked){
-  $('raceLock').style.display = unlocked?'none':'';
-  $('raceAdminControls').style.display = unlocked?'':'none';
-  $('raceListCard').style.display = unlocked?'':'none';
-  renderRaceTab();
-}
-function tryUnlockWith(passwordInputId){
-  const v=$(passwordInputId).value;
-  if(v===SETUP_PASSWORD){
-    sessionStorage.setItem(LS_UNLOCK_KEY,'1');
-    $(passwordInputId).value='';
-    showSetupContent(true);
-    showRaceLockUI(true);
-    renderResultUI();
-    toast('ロックを解除しました');
-  }else{
-    toast('パスワードが違います');
+function showOrganizerTabs(unlocked){
+  document.querySelectorAll('.organizer-tab').forEach(t=>{
+    t.classList.toggle('hidden-tab', !unlocked);
+  });
+  $('organizerCheck').checked = unlocked;
+  if(!unlocked){
+    const active = document.querySelector('.tab.active');
+    if(active && (active.dataset.view==='race' || active.dataset.view==='setup')){
+      switchTab('vote');
+    }
   }
 }
-$('unlockSetup').addEventListener('click',()=>tryUnlockWith('setupPassword'));
-$('setupPassword').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); tryUnlockWith('setupPassword'); } });
-$('unlockRace').addEventListener('click',()=>tryUnlockWith('racePassword'));
-$('racePassword').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); tryUnlockWith('racePassword'); } });
+function confirmOrganizerPassword(){
+  const v=$('organizerPassword').value;
+  if(v===SETUP_PASSWORD){
+    sessionStorage.setItem(LS_UNLOCK_KEY,'1');
+    $('pwOverlay').style.display='none';
+    $('organizerPassword').value='';
+    showOrganizerTabs(true);
+    renderResultUI();
+    toast('幹事モードで解除しました');
+  }else{
+    toast('パスワードが違います');
+    $('organizerPassword').select();
+  }
+}
+$('organizerCheck').addEventListener('change',e=>{
+  if(e.target.checked){
+    if(isSetupUnlocked()){ showOrganizerTabs(true); return; }
+    e.target.checked=false;
+    $('pwOverlay').style.display='flex';
+    $('organizerPassword').value='';
+    setTimeout(()=>$('organizerPassword').focus(),50);
+  }else{
+    sessionStorage.removeItem(LS_UNLOCK_KEY);
+    showOrganizerTabs(false);
+    renderResultUI();
+    toast('幹事モードを終了しました');
+  }
+});
+$('pwConfirm').addEventListener('click',confirmOrganizerPassword);
+$('pwCancel').addEventListener('click',()=>{
+  $('pwOverlay').style.display='none';
+  $('organizerPassword').value='';
+});
+$('organizerPassword').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();confirmOrganizerPassword();}
+  if(e.key==='Escape'){$('pwCancel').click();}
+});
 
 /* ---------- tabs ---------- */
 function switchTab(view){
@@ -600,8 +643,8 @@ function switchTab(view){
   document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active', x.id==='view-'+view));
   if(view==='vote'){renderVoteLock();renderVoteHorseList();renderComboArea();renderVoteList();}
   if(view==='tally'){renderResultUI();}
-  if(view==='race'){showRaceLockUI(isSetupUnlocked());refreshRaceList(true);}
-  if(view==='setup'){showSetupContent(isSetupUnlocked());renderSetupRaceLabel();}
+  if(view==='race'){refreshRaceList(true);}
+  if(view==='setup'){renderSetupRaceLabel();}
   if(apiUrl&&currentRaceId)refresh(false);
   window.scrollTo(0,0);
 }
@@ -717,7 +760,7 @@ function renderVoteHorseList(){
   const el=$('voteHorseList'); if(!el)return;
   $('voteHorseCount').textContent=state.horses.length+'頭';
   if(state.horses.length===0){
-    el.innerHTML='<div class="muted">「設定」タブで出走馬を追加してください。</div>';return;
+    el.innerHTML='<div class="muted">出走馬は未登録です。幹事にご連絡ください。</div>';return;
   }
   el.innerHTML = state.horses.map((h,i)=>
     `<span class="chip"><span class="horse-num">${i+1}</span>${escapeHtml(h.name)}${h.waku!=null?`<span class="waku-badge">${h.waku}枠</span>`:''}</span>`
@@ -906,7 +949,7 @@ function positionOptions(selectedPos){
 function renderComboArea(){
   const area=$('comboArea');
   if(!currentRaceId){
-    area.innerHTML='<div class="muted">「レース」タブでレースを選択してください。</div>';
+    area.innerHTML='<div class="muted">参加するには幹事から共有されたQRコードを読み取ってください。</div>';
     $('addCombo').style.display='none';
     return;
   }
@@ -1233,8 +1276,7 @@ function initUI(){
   loadCache();
   loadRaceListCache();
   $('apiUrlInput').value=apiUrl;
-  showSetupContent(isSetupUnlocked());
-  showRaceLockUI(isSetupUnlocked());
+  showOrganizerTabs(isSetupUnlocked());
   renderRaceName();
   renderUnitStake();
   renderHorseList();
