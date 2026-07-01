@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d3b66">
+<title>馬券投票・集計 v3</title>
+<style>
+  :root{
+    --green:#0d3b66; --green2:#1864ab; --accent:#f5b301; --accent2:#e29400;
+    --bg:#f3f5f4; --card:#ffffff; --line:#dde3e0; --txt:#1b2420; --sub:#6b7771;
+    --danger:#d64545; --ok:#1f9d55; --gold:#fff7e0;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    background:var(--bg); color:var(--txt); line-height:1.5;
+    padding-bottom:80px;
+  }
+  header{
+    background:linear-gradient(135deg,var(--green),var(--green2));
+    color:#fff; padding:14px 16px; position:sticky; top:0; z-index:20;
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+  }
+  header h1{margin:0;font-size:18px;display:flex;align-items:center;gap:8px;}
+  header .race-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:2px;}
+  header .race{font-size:13px;opacity:.85;}
+  .sync-status{font-size:11px;white-space:nowrap;font-weight:600;}
+  .sync-status.ok{color:#bfe8d3;}
+  .sync-status.bad{color:#ffd0d0;}
+  .tabs{
+    display:flex; background:var(--green2); position:sticky; top:0; z-index:19;
+  }
+  .tab{
+    flex:1; text-align:center; color:#cfe3da; padding:12px 4px; font-size:13px;
+    font-weight:600; border:none; background:none; cursor:pointer; border-bottom:3px solid transparent;
+  }
+  .tab.active{color:#fff; border-bottom-color:var(--accent);}
+  main{padding:14px; max-width:560px; margin:0 auto;}
+  .view{display:none;} .view.active{display:block;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04);
+  }
+  .card h2{margin:0 0 12px; font-size:15px; color:var(--green); display:flex;align-items:center;gap:6px;}
+  label{font-size:12px; color:var(--sub); font-weight:600; display:block; margin-bottom:4px;}
+  input[type=text],input[type=number],input[type=password],select{
+    width:100%; padding:11px 12px; font-size:16px; border:1px solid var(--line);
+    border-radius:10px; background:#fff; color:var(--txt); appearance:none;
+  }
+  input:focus,select:focus{outline:none;border-color:var(--green2);box-shadow:0 0 0 3px rgba(24,100,171,.12);}
+  .row{display:flex; gap:8px;}
+  .row > *{flex:1;}
+  .btn{
+    border:none; border-radius:10px; padding:12px 14px; font-size:15px; font-weight:700;
+    cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn:disabled{opacity:.4;cursor:default;}
+  .btn-primary{background:var(--accent); color:#3a2c00;}
+  .btn-primary:active{background:var(--accent2);}
+  .btn-green{background:var(--green2); color:#fff;}
+  .btn-ghost{background:#eef2f0; color:var(--green);}
+  .btn-danger{background:#fde8e8; color:var(--danger);}
+  .btn-block{width:100%;}
+  .btn-sm{padding:7px 10px; font-size:13px;}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; background:#eef2f0; color:var(--green);
+    border-radius:20px; padding:6px 12px; font-size:14px; font-weight:600; margin:0 6px 6px 0;
+  }
+  .chip button{background:none;border:none;color:var(--sub);font-size:16px;cursor:pointer;padding:0;line-height:1;}
+  .horse-num{
+    display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;
+    background:var(--green);color:#fff;border-radius:6px;font-size:12px;font-weight:700;padding:0 5px;
+  }
+  .muted{color:var(--sub); font-size:13px;}
+  .fixed-stake{display:flex;align-items:center;gap:10px;}
+  .horse-listbox{margin-top:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .horse-li{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);background:#fff;}
+  .horse-li:last-child{border-bottom:none;}
+  .horse-li:nth-child(even){background:#f8faf9;}
+  .horse-nm{flex:1;font-size:15px;font-weight:600;}
+  .horse-nm-input{flex:1;font-size:15px;font-weight:600;padding:6px 8px;border:1px solid transparent;border-radius:8px;background:transparent;}
+  .horse-nm-input:focus{background:#fff;border-color:var(--line);box-shadow:none;}
+  .horse-del{flex:0;background:#fde8e8;color:var(--danger);border:none;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer;}
+  .horse-move{flex:0;background:#eef2f0;color:var(--green);border:none;border-radius:8px;width:28px;height:32px;font-size:13px;cursor:pointer;}
+  .horse-move:disabled{opacity:.25;cursor:default;}
+  .horse-waku{flex:0 0 56px;width:56px;padding:6px 4px;font-size:13px;text-align:center;border:1px solid var(--line);border-radius:8px;}
+  .waku-badge{display:inline-block;background:var(--accent);color:#3a2c00;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:4px;}
+  .segmented{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .segmented label{flex:1;text-align:center;padding:10px 6px;font-size:13px;font-weight:700;color:var(--sub);background:#fff;cursor:pointer;margin:0;border-right:1px solid var(--line);}
+  .segmented label:last-child{border-right:none;}
+  .segmented input{display:none;}
+  .segmented input:checked + span{color:#fff;}
+  .segmented label.checked{background:var(--green2);color:#fff;}
+  .combo-slot{flex:1;display:flex;flex-direction:column;gap:2px;}
+  .slot-label{font-size:11px;color:var(--sub);font-weight:700;padding-left:2px;}
+  .combo-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+  .combo-row select{flex:1;}
+  .combo-row .x{color:var(--sub);font-weight:700;flex:0;}
+  .combo-row .del{flex:0;background:#fde8e8;color:var(--danger);border:none;border-radius:8px;width:38px;height:42px;font-size:18px;cursor:pointer;}
+  .vote-item{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;}
+  .vote-item .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .vote-item .name{font-weight:700;font-size:15px;}
+  .bet-pair{display:inline-block;background:#eef2f0;border-radius:8px;padding:3px 9px;margin:0 5px 5px 0;font-size:13px;font-weight:600;}
+  .bet-pair.hit{background:var(--gold);border:1px solid var(--accent);color:#7a5a00;}
+  .empty{text-align:center;color:var(--sub);padding:24px 8px;font-size:14px;}
+  .total-line{display:flex;justify-content:space-between;font-size:14px;padding:4px 0;}
+  .total-line.big{font-size:17px;font-weight:800;color:var(--green);border-top:1px dashed var(--line);margin-top:6px;padding-top:10px;}
+  .result-pick{display:flex;gap:10px;}
+  .result-pick > div{flex:1;}
+  .winner-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:10px;margin-bottom:8px;background:var(--gold);border:1px solid var(--accent);}
+  .winner-row .nm{font-weight:700;}
+  .plus{color:var(--ok);font-weight:800;}
+  .minus{color:var(--danger);font-weight:700;}
+  .pill{display:inline-block;background:var(--green);color:#fff;border-radius:20px;padding:8px 16px;font-weight:800;font-size:18px;}
+  .danger-zone{margin-top:8px;}
+  .hint{font-size:12px;color:var(--sub);margin-top:6px;}
+  .badge{font-size:11px;background:#eef2f0;color:var(--sub);border-radius:6px;padding:2px 7px;font-weight:700;}
+  .badge-sel{background:var(--accent);color:#3a2c00;}
+  .badge-closed{background:#fde8e8;color:var(--danger);margin-left:4px;}
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;
+    padding:10px 18px;border-radius:24px;font-size:14px;z-index:100;opacity:0;transition:.25s;pointer-events:none;
+  }
+  .toast.show{opacity:.95;}
+  .race-card{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;background:#fff;}
+  .race-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px rgba(245,179,1,.25);}
+  .race-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .race-card-name{font-weight:700;font-size:15px;}
+  .race-card-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .race-card-actions .btn{flex:1;min-width:90px;}
+  /* ===== オッズ表 ===== */
+  .odds-table{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .odds-table th{
+    background:var(--green);color:#fff;font-size:11px;font-weight:700;
+    padding:7px 8px;white-space:nowrap;
+  }
+  .odds-table th:first-child{border-radius:0;}
+  .odds-table td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  .odds-table tbody tr:last-child td{border-bottom:none;}
+  .odds-table tbody tr:nth-child(even) td{background:#f8faf9;}
+  .odds-uma-num{
+    text-align:center;width:40px;
+    font-size:19px;font-weight:900;font-family:Georgia,'Times New Roman',serif;
+    color:var(--green);line-height:1;padding:4px 8px;
+  }
+  .odds-waku-col{text-align:center;width:44px;padding:4px 4px!important;}
+  .odds-waku-badge{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:32px;height:24px;border-radius:6px;font-size:11px;font-weight:800;line-height:1;
+  }
+  .odds-name{font-weight:700;font-size:15px;}
+  .odds-hc{text-align:right;width:60px;font-size:13px;font-weight:700;color:var(--green2);white-space:nowrap;}
+  .organizer-toggle{
+    display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;
+    background:rgba(255,255,255,.15);border-radius:20px;padding:5px 12px;
+    user-select:none;white-space:nowrap;flex:0 0 auto;
+  }
+  .organizer-toggle input[type=checkbox]{
+    width:16px;height:16px;cursor:pointer;accent-color:var(--accent);flex:0 0 16px;
+  }
+  .organizer-tab.hidden-tab{display:none;}
+  .pw-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;
+    display:flex;align-items:center;justify-content:center;padding:16px;
+  }
+  .pw-dialog{
+    background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:320px;
+    box-shadow:0 8px 32px rgba(0,0,0,.3);
+  }
+  .pw-title{font-size:17px;font-weight:800;color:var(--green);text-align:center;margin-bottom:16px;}
+  .pw-actions{display:flex;gap:8px;margin-top:4px;}
+  .pw-actions .btn{flex:1;}
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="30" height="30" style="vertical-align:middle;flex-shrink:0"><path fill="#2A6797" d="M20.952 18.872c-.265 2.577-.003 7.809.241 8.497.247.686 2.206 3.499 2.674 4.202.407.61-2.035 2.397-2.526 1.87-.887-.95-3.271-4.407-3.466-4.959-.195-.554-.966-6.297-1.403-9.329l4.48-.281z"/><path fill="#66757F" d="M12.115 3.532L9.502 2.113c-.449-.249.029-1.303.479-1.054l2.692 1.466-.558 1.007z"/><path fill="#CCD6DD" d="M16.492 33.744c-.658-.864-4.719.256-6.118.957C9.44 35.17 9.717 36 9.717 36h7.033s.399-1.391-.258-2.256z"/><path fill="#FFCC4D" d="M20.357 8.932c-2.148-1.12-5.023-2.745-7.273-5.713-.235-.31-2.122.944-1.969 1.156 2.125 2.938 4.438 5.5 11.075 7.398.069.02-.943-2.376-1.833-2.841z"/><path fill="#4289C1" d="M22.66 30.437c.12-.038.249-.065.374-.097-.19-.282-.388-.577-.588-.879-.118.035-.232.076-.347.116-.312-.481-.592-.917-.802-1.253.118-.035.239-.064.362-.093-.23-.378-.403-.689-.466-.862-.004-.011-.008-.033-.012-.046-.112.03-.227.055-.335.09-.102-.357-.215-.884-.319-1.505.152-.036.305-.072.464-.099-.024-.306-.045-.641-.065-.999-.186.029-.366.065-.544.106-.068-.533-.123-1.093-.156-1.649.206-.042.418-.073.635-.096-.009-.332-.014-.668-.017-1.003-.221.021-.44.045-.651.082-.001-.191.01-.466.021-.688.649-.842 1.058-1.939.713-3.468l-7.889.092s-1.107 9.026-1.107 9.857c0 .828.516 4.528.83 5.856.105.439 3.91.614 3.773-.354-.086-.599-.645-4.492-.554-4.948.086-.431.513-2.597 1.245-4.133l.064.448c.052-.059.108-.112.162-.168.055.507.123 1 .2 1.458-.051.041-.104.08-.153.123.07.461.134.871.191 1.21.059-.066.124-.126.186-.189.124.529.481 1.331.553 1.45-.086.079-.166.165-.247.249.148.243.34.541.557.868.076-.086.154-.17.236-.251.251.392.538.834.837 1.29-.073.07-.138.149-.207.222.199.282.4.562.596.827.057-.065.117-.126.177-.188.427.649.831 1.259 1.131 1.71.237.051.611-.08.999-.304-.316-.475-.825-1.242-1.358-2.053.182-.123.373-.236.574-.338.461.705.94 1.431 1.331 2.02.3-.234.561-.495.714-.733-.339-.509-.726-1.095-1.108-1.678zm-4.093-4.858c-.074-.503-.138-1.044-.184-1.593.27-.169.555-.319.86-.438.038.558.095 1.119.166 1.656-.293.109-.577.231-.842.375zm.179 1.065c.256-.162.527-.308.817-.429.11.628.233 1.174.357 1.575-.243.118-.474.249-.695.393-.041-.07-.347-.866-.479-1.539zm1.851 3.684c-.304-.465-.593-.911-.84-1.297.188-.123.386-.235.594-.337.204.331.491.781.82 1.289-.2.106-.39.221-.574.345z"/><path d="M19.198 22.592c.4-.332.798-.711 1.122-1.166-3.304.609-5.935-.062-7.598-.634l-.121 1.016c1.255.419 2.988.867 5.106.867.476-.001.977-.033 1.491-.083zm-2.604 3.518c.104-.338.225-.678.354-1.01-1.907.06-3.494-.274-4.66-.605-.04.349-.078.684-.113 1.006 1.118.31 2.577.612 4.318.612l.101-.003zm-.61 2.984c-.016-.24-.02-.42-.005-.497.018-.091.055-.276.103-.5-1.668.058-3.072-.187-4.128-.437-.014.172-.024.314-.024.383 0 .14.016.368.042.648.969.218 2.188.42 3.613.42.128-.001.268-.014.399-.017zm-3.759 1.67c.048.343.1.69.152 1.028.628.08 1.348.144 2.162.144.548 0 1.138-.034 1.756-.104-.043-.322-.087-.661-.128-.994-1.566.178-2.915.071-3.942-.074z" fill="#88C9F9"/><g fill="#55ACEE"><path d="M14.2 18.73c-.056.269-1.602 8.59-1.643 9.077-.015.179-.024.334-.018.431.008.139.626 5.29.705 5.892.274.061.636.102 1.024.115-.075-.569-.72-5.897-.73-6.068-.003-.05-.001-.12.004-.206.025-.393 1.485-8.301 1.638-9.036l-.98-.205z"/><path d="M16.691 18.454c-.001.014-.133 1.436-.312 2.322-.051.253-.123.534-.198.819-.083.312-.177.637-.28.972-.25.814-.54 1.67-.815 2.472l-.001.004c-.124.361-.853 2.598-.889 3.001-.006.071-.008.136-.005.194.011.176.641 5.411.719 6.004.363-.017.709-.062.99-.14-.075-.572-.7-5.734-.711-5.924-.001-.018.005-.052.007-.078.028-.313.895-2.911.924-2.997.276-.805.557-1.647.799-2.454.102-.342.193-.671.274-.989.059-.234.122-.472.165-.686.188-.938.321-2.367.327-2.428l-.994-.092zm2.706.599c0 .629-.265 1.913-.503 2.56-.045.121-.841 1.651-.985 1.979.359-.293.828-.617 1.298-1.008.201-.167.399-.348.59-.543.065-.167.128-.359.187-.566.238-.832.413-1.886.413-2.422h-1z"/></g><path fill="#FFDC5D" d="M25.376 5.216c0 1.976-1.601 3.579-3.578 3.579-1.977 0-3.58-1.603-3.58-3.579 0-1.976 1.603-3.579 3.58-3.579 1.976 0 3.578 1.602 3.578 3.579"/><path fill="#4289C1" d="M19.929 5.215c-1.71-1.278-2.587-3.85-1.95-4.525 1.196-1.268 3.688-.109 4.328.983.641 1.094-1.86 3.929-2.378 3.542z"/><path fill="#77B255" d="M13.038 18.185s.196-6.405 3.264-8.772c2.289-1.768 6.143-.446 7.165 1.599 1.024 2.045-2.414 3.167-2.414 8.28 0 1.023-8.015.898-8.015-1.107z"/><path fill="#FFDC5D" d="M20.179 5.813c-.466 1.068-.788 1.977-.988 2.783.574.271 1.061 1.31 1.701 1.542 1.056.383 1.173-.277 1.197-.398.257-1.297.908-2.537 1.328-3.203.512-.809-2.646-2.084-3.238-.724z"/><path fill="#50A5E6" d="M18.942 3.06c0 1.151 1.674 4.486 4.971 4.473 1.727-.007 2.037-1.91 2.028-3.172-.006-1.081-1.176-2.966-2.808-3.433-1.631-.467-4.191.679-4.191 2.132z"/><path fill="#CCD6DD" d="M22.887 31.456c1.5-.255 1.286 1.386 1.247 1.974-.093 1.4-.37 2.57-1.362 2.57h-3.321s-.184-1.522 1.603-1.868c.353-.069-.312-2.312 1.833-2.676z"/><path fill="#FFDC5D" d="M13.63 8.191c-.717-.828-.977-1.983-.796-3.425.592-.259 1.006-.833 1.006-1.503 0-.913-.763-1.652-1.705-1.652-.94 0-1.704.739-1.704 1.652 0 .206.044.402.115.584-.005.007-.026.004-.028.014-.871 7.123 4.099 7.824 5.732 8.055.101.014 1.768-2.244 1.666-2.244-1.993 0-3.435-.498-4.286-1.481z"/><path fill="#77B255" d="M14.445 8.385c-.384 1.283-1.605 2.723-1.605 2.723 1.765 1.579 3.844 1.719 3.844 1.719s1.818-2.049 2.159-3.28c-1.551.432-4.398-1.162-4.398-1.162z"/><path fill="#66757F" d="M29.589 11.917c-.013-.006-.024-.007-.037-.012-.049-.036-.091-.076-.147-.107l-15.62-8.65c-.449-.249-.706.926-.257 1.175l14.883 8.24c-.436.748-.717 1.871-.827 2.339-.189.805 1.137 1.61 2.004 1.61.867.001 1.027-4.072.001-4.595z"/></svg>馬券 投票・集計</h1>
+    <label class="organizer-toggle" title="幹事モード">
+      <input type="checkbox" id="organizerCheck" autocomplete="off">幹事
+    </label>
+  </div>
+  <div class="race-row">
+    <div class="race" id="raceLabel">レース未選択</div>
+    <div class="sync-status bad" id="apiStatus">未接続</div>
+  </div>
+</header>
+<div class="tabs">
+  <button class="tab active" data-view="vote">投票</button>
+  <button class="tab" data-view="tally">集計</button>
+  <button class="tab organizer-tab hidden-tab" data-view="race">レース</button>
+  <button class="tab organizer-tab hidden-tab" data-view="setup">設定</button>
+</div>
+
+<main>
+  <!-- ===== RACE ===== -->
+  <section class="view" id="view-race">
+    <div id="raceAdminControls">
+      <div class="card">
+        <h2>➕ 新しいレースを追加</h2>
+        <div class="row">
+          <input type="text" id="newRaceName" placeholder="レース名（例：第3レース）" autocomplete="off">
+          <button class="btn btn-green" id="createRaceBtn" style="flex:0 0 80px">作成</button>
+        </div>
+        <div class="hint">作成すると自動でそのレースが選択されます。</div>
+      </div>
+
+      <div class="card">
+        <h2>📦 レース一覧のバックアップ</h2>
+        <button class="btn btn-green btn-block" id="exportBackupBtn">💾 全レースをバックアップ（ダウンロード）</button>
+        <button class="btn btn-ghost btn-block" id="importBackupBtn" style="margin-top:8px">📂 バックアップから復元（追加）</button>
+        <input type="file" id="backupFileInput" accept="application/json,.json" style="display:none">
+        <div class="hint">出走馬・投票・結果を含む全レースをJSONファイルとして保存できます。復元は既存のレースを残したまま、ファイルの内容を新しいレースとして追加します（上書きはされません）。</div>
+      </div>
+    </div>
+
+    <div class="card" id="raceQrCard" style="display:none">
+      <h2>📱 共有用QRコード</h2>
+      <div style="text-align:center">
+        <div class="muted" id="raceQrLabel"></div>
+        <img id="raceQrImg" alt="QRコード" style="width:200px;height:200px;border:1px solid var(--line);border-radius:12px;margin-top:8px">
+      </div>
+      <div class="hint">投票者がこのQRコードを読み取ると、共有設定とレース選択が自動で行われます。</div>
+    </div>
+
+    <div class="card" id="raceListCard">
+      <h2>🏁 レース一覧 <span class="badge" id="raceListCount">0件</span></h2>
+      <div id="raceListArea"></div>
+    </div>
+  </section>
+
+  <!-- ===== SETUP ===== -->
+  <section class="view" id="view-setup">
+    <div id="setupContent">
+      <div class="card">
+        <h2>🔗 共有設定（Firebase）</h2>
+        <label>Firebase Realtime Database の URL</label>
+        <input type="text" id="firebaseUrlInput" placeholder="https://your-project-default-rtdb.firebaseio.com" autocomplete="off">
+        <button class="btn btn-green btn-block" id="saveFirebaseUrl" style="margin-top:10px">保存して接続</button>
+        <div class="hint">Firebase Console → Realtime Database のURLを入力してください。参加者全員が同じURLを入力すると、データが共有されます。レースごとのQRコードは「レース」タブから発行できます。<br><br>⚠️ Firebaseのルールを <code style="background:#eef2f0;padding:1px 5px;border-radius:4px">{".read":true,".write":true}</code> に設定してください。</div>
+      </div>
+
+      <div class="card" id="setupCurrentRace">
+        <h2>🏇 編集中のレース</h2>
+        <div class="muted" id="setupRaceLabel">レース未選択</div>
+        <button class="btn btn-ghost btn-block" id="gotoRaceTabFromSetup" style="margin-top:10px">「レース」タブで切り替える</button>
+      </div>
+
+      <div class="card">
+        <h2>📋 レース設定</h2>
+        <label>レース名（任意）</label>
+        <input type="text" id="raceName" placeholder="例：第3レース 仲間内ダービー">
+        <div style="height:12px"></div>
+        <label>1点あたりのポイント代</label>
+        <div class="row">
+          <input type="number" id="unitStakeInput" min="1" step="1" placeholder="500">
+          <button class="btn btn-green" id="saveUnitStake" style="flex:0 0 70px">保存</button>
+        </div>
+        <div class="hint">デフォルトは500pt。レースごとに変更できます。</div>
+      </div>
+
+      <div class="card">
+        <h2>🏌️ 競技方式</h2>
+        <div class="segmented" id="gameStyleSegmented">
+          <label><input type="radio" name="gameStyle" value="shinperia"><span>新ペリア</span></label>
+          <label><input type="radio" name="gameStyle" value="hande"><span>ハンデ</span></label>
+        </div>
+        <div class="hint">新ペリア：出走者名のみ入力。ハンデ：出走者ごとにハンデキャップを設定できます。</div>
+      </div>
+
+      <div class="card">
+        <h2>🎯 投票方式</h2>
+        <div class="segmented" id="betTypeSegmented">
+          <label><input type="radio" name="betType" value="umaren"><span>馬連</span></label>
+          <label><input type="radio" name="betType" value="umatan"><span>馬単</span></label>
+          <label><input type="radio" name="betType" value="wakuren"><span>枠連</span></label>
+        </div>
+        <div class="hint">変更すると現在の投票・結果はリセットされます。枠連を使う場合は下で各馬に枠番を設定してください。</div>
+        <div id="umatanPosConfig" style="display:none;margin-top:14px">
+          <div class="row">
+            <div>
+              <label>予想着順 ①</label>
+              <select id="umatanPosA"></select>
+            </div>
+            <div>
+              <label>予想着順 ②</label>
+              <select id="umatanPosB"></select>
+            </div>
+          </div>
+          <div class="hint">馬単で当てる2つの着順を指定します（例：1着と2着、3着と6着など）。変更すると現在の投票・結果はリセットされます。</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🐴 出走馬を入力 <span class="badge" id="horseCount">0頭</span></h2>
+        <div class="row">
+          <input type="text" id="horseInput" placeholder="出走者名" autocomplete="off">
+          <input type="number" id="horseHandeInput" placeholder="HC" min="-99" max="99" step="0.5" style="flex:0 0 60px;display:none">
+          <input type="number" id="horseWakuInput" placeholder="枠" min="1" max="8" style="flex:0 0 48px">
+          <button class="btn btn-green" id="addHorse" style="flex:0 0 70px">追加</button>
+        </div>
+        <div class="hint" id="horseInputHint">名前を入れて追加。枠番は任意（後から各馬の欄で変更できます）。▲▼で並べ替えると馬番が変わります。</div>
+        <div class="horse-listbox" id="horseList"></div>
+      </div>
+
+      <div class="card danger-zone">
+        <button class="btn btn-danger btn-block" id="resetAll">このレースをリセット</button>
+        <div class="hint">このレースの出走馬・投票・結果をすべて消します（レース自体は削除されません。レースの削除は「レース」タブから行えます）。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== VOTE ===== -->
+  <section class="view active" id="view-vote">
+    <div class="card">
+      <h2>🐴 出走馬一覧 <span class="badge" id="voteHorseCount">0頭</span></h2>
+      <div id="voteHorseList"></div>
+    </div>
+    <div class="card">
+      <h2>✍️ 投票する</h2>
+      <div id="voteClosedNotice" class="empty" style="display:none">🔒 このレースは締め切られました。新しい投票・投票の変更はできません。</div>
+      <div id="voteFormFields">
+        <label>名前</label>
+        <input type="text" id="voterName" placeholder="投票する人の名前" autocomplete="off">
+        <div style="height:12px"></div>
+        <label id="comboLabel">馬連（4〜6点）</label>
+        <div id="comboArea"></div>
+        <button class="btn btn-ghost btn-sm" id="addCombo" style="margin-top:4px">＋ 組を追加</button>
+        <div class="total-line big"><span>合計ポイント代</span><span id="voteTotal">0 pt</span></div>
+        <button class="btn btn-primary btn-block" id="submitVote" style="margin-top:12px">この内容で投票</button>
+        <div class="hint">同じ人で投票し直すと上書きされます。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🧾 投票一覧 <span class="badge" id="voteCount">0人</span></h2>
+      <div id="voteList"></div>
+    </div>
+  </section>
+
+  <!-- ===== TALLY ===== -->
+  <section class="view" id="view-tally">
+    <div class="card">
+      <h2>🏁 結果を入力</h2>
+      <div class="result-pick">
+        <div>
+          <label id="resultPosALabel">1着</label>
+          <select id="firstPlace"></select>
+        </div>
+        <div>
+          <label id="resultPosBLabel">2着</label>
+          <select id="secondPlace"></select>
+        </div>
+      </div>
+      <div class="hint" id="resultLockHint" style="display:none">🔒 結果の入力は幹事のみ操作できます（投票・集計の閲覧は誰でも可能です）。</div>
+      <button class="btn btn-green btn-block" id="calcBtn" style="margin-top:12px">集計する</button>
+      <div class="hint" id="tallyHint">馬連は1着・2着の組み合わせ（順不同）が的中です。</div>
+    </div>
+    <div id="resultArea"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<div class="pw-overlay" id="pwOverlay" style="display:none">
+  <div class="pw-dialog">
+    <div class="pw-title">🔑 幹事モード</div>
+    <input type="password" id="organizerPassword" placeholder="パスワード" autocomplete="off"
+      style="text-align:center;letter-spacing:2px;margin-bottom:14px">
+    <div class="pw-actions">
+      <button class="btn btn-ghost" id="pwCancel">キャンセル</button>
+      <button class="btn btn-primary" id="pwConfirm">解除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const LS_FB_URL_KEY = 'baren_fb_url';
+const LS_RACE_ID_KEY = 'baren_current_race_id_v3';
+const LS_CACHE_PREFIX = 'baren_state_v4_';
+const LS_RACELIST_CACHE_KEY = 'baren_racelist_v4';
+const MAX_COMBO = 6;
+const MIN_COMBO = 4;
+const DEFAULT_UNIT_STAKE = 500;
+const POLL_MS = 5000;
+const SETUP_PASSWORD = 'golf';
+const LS_UNLOCK_KEY = 'baren_setup_unlocked';
+const BET_TYPE_LABELS = {umaren:'馬連', umatan:'馬単', wakuren:'枠連'};
+
+let firebaseUrl = localStorage.getItem(LS_FB_URL_KEY) || '';
+let currentRaceId = localStorage.getItem(LS_RACE_ID_KEY) ? Number(localStorage.getItem(LS_RACE_ID_KEY)) : null;
+let _idSeed = Date.now();
+function genId(){ return ++_idSeed; }
+
+{
+  const params = new URLSearchParams(location.search);
+  const fromDb = params.get('db');
+  const fromRace = params.get('race');
+  if(fromDb || fromRace){
+    if(fromDb){ firebaseUrl = fromDb; localStorage.setItem(LS_FB_URL_KEY, firebaseUrl); }
+    if(fromRace){ currentRaceId = Number(fromRace); localStorage.setItem(LS_RACE_ID_KEY, String(currentRaceId)); }
+    history.replaceState({}, '', location.origin+location.pathname);
+    toast(fromRace ? 'QRコードから共有設定・レースを読み込みました' : 'QRコードから共有設定を読み込みました');
+  }
+}
+
+function emptyState(){ return { raceId:null, raceName:'', horses:[], votes:[], result:{order:[]}, betType:'umaren', umatanPositions:[1,2], unitStake:DEFAULT_UNIT_STAKE, closed:false, gameStyle:'shinperia' }; }
+let state = emptyState();
+let raceList = [];
+let pollTimer = null;
+let lastBetType = null;
+let lastUmatanPosKey = null;
+let lastExportPayload = null;
+
+/* ---------- helpers ---------- */
+function $(id){return document.getElementById(id);}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function horseDisplayNo(id){const i=state.horses.findIndex(h=>h.id===id);return i>=0?i+1:'?';}
+function horseNameById(id){const h=state.horses.find(h=>h.id===id);return h?h.name:'?';}
+function horseWaku(id){const h=state.horses.find(x=>x.id===id);return (h&&h.waku!=null)?Number(h.waku):null;}
+function betTypeLabel(){return BET_TYPE_LABELS[state.betType]||'馬連';}
+function voteKey(name){ return String(name).replace(/[.$#[\]/]/g,'_'); }
+function wakuList(){
+  const map={};
+  state.horses.forEach(h=>{ if(h.waku!=null){ (map[h.waku]=map[h.waku]||[]).push(h.name); } });
+  return Object.keys(map).map(Number).sort((a,b)=>a-b).map(w=>({waku:w,horses:map[w]}));
+}
+function umatanPositions(){
+  const p=state.umatanPositions;
+  return (Array.isArray(p)&&p.length===2)?[Number(p[0])||1,Number(p[1])||2]:[1,2];
+}
+function activePositions(){
+  return state.betType==='umatan' ? umatanPositions() : [1,2];
+}
+function resultAt(pos){
+  const o=state.result.order||[];
+  const v=o[pos-1];
+  return (v===undefined||v===null||v==='')?null:Number(v);
+}
+function resultFirst(){const[posA]=activePositions();return resultAt(posA);}
+function resultSecond(){const[,posB]=activePositions();return resultAt(posB);}
+function setResultAt(pos,horseId){
+  const o=(state.result.order||[]).slice();
+  while(o.length<pos) o.push(null);
+  o[pos-1]=horseId;
+  return o;
+}
+function comboLabel(c){
+  if(state.betType==='umatan'){
+    const[posA,posB]=umatanPositions();
+    return `${posA}着:${horseDisplayNo(c[0])}→${posB}着:${horseDisplayNo(c[1])}`;
+  }
+  if(state.betType==='wakuren'){ const s=[c[0],c[1]].sort((x,y)=>x-y); return `${s[0]}-${s[1]}`; }
+  const s=[horseDisplayNo(c[0]),horseDisplayNo(c[1])].sort((x,y)=>x-y);
+  return `${s[0]}-${s[1]}`;
+}
+function isHit(c){
+  const fa=resultFirst(), fb=resultSecond();
+  if(fa===null||fb===null)return false;
+  if(state.betType==='umatan'){
+    return c[0]===fa && c[1]===fb;
+  }
+  if(state.betType==='wakuren'){
+    const wa=horseWaku(fa), wb=horseWaku(fb);
+    if(wa===null||wb===null)return false;
+    const s=[wa,wb].sort((x,y)=>x-y);
+    const cs=[c[0],c[1]].sort((x,y)=>x-y);
+    return s[0]===cs[0]&&s[1]===cs[1];
+  }
+  const s=[fa,fb].sort((x,y)=>x-y);
+  const cs=[c[0],c[1]].sort((x,y)=>x-y);
+  return s[0]===cs[0]&&s[1]===cs[1];
+}
+
+const WAKU_STYLES = {
+  1:'background:#fff;color:#333;border:1.5px solid #bbb',
+  2:'background:#2c2c2c;color:#fff',
+  3:'background:#c0392b;color:#fff',
+  4:'background:#2574a9;color:#fff',
+  5:'background:#f9bf3b;color:#5a4200',
+  6:'background:#26a65b;color:#fff',
+  7:'background:#e67e22;color:#fff',
+  8:'background:#c0392b;color:#fff;border:2px solid #f9bf3b'
+};
+function wakuBadgeStyle(waku){return waku!=null&&WAKU_STYLES[waku]?WAKU_STYLES[waku]:'background:#eef2f0;color:var(--green)';}
+
+/* ---------- local cache ---------- */
+function loadCache(){
+  if(!currentRaceId)return;
+  try{ const s=JSON.parse(localStorage.getItem(LS_CACHE_PREFIX+currentRaceId)); if(s) state=Object.assign(emptyState(),s); }catch(e){}
+}
+function saveCache(){
+  if(!currentRaceId)return;
+  localStorage.setItem(LS_CACHE_PREFIX+currentRaceId, JSON.stringify(state));
+}
+function loadRaceListCache(){
+  try{ const s=JSON.parse(localStorage.getItem(LS_RACELIST_CACHE_KEY)); if(Array.isArray(s)) raceList=s; }catch(e){}
+}
+function saveRaceListCache(){ localStorage.setItem(LS_RACELIST_CACHE_KEY, JSON.stringify(raceList)); }
+
+/* ---------- Firebase REST API ---------- */
+function fbUrl(path){
+  const base=firebaseUrl.replace(/\/+$/,'');
+  const p=String(path).replace(/^\/+/,'');
+  return `${base}/${p}.json`;
+}
+async function fbGet(path){
+  const res=await fetch(fbUrl(path));
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  return res.json();
+}
+async function fbSet(path,data){
+  const res=await fetch(fbUrl(path),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  return res.json();
+}
+async function fbPatch(path,data){
+  const res=await fetch(fbUrl(path),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  return res.json();
+}
+async function fbDelete(path){
+  const res=await fetch(fbUrl(path),{method:'DELETE'});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+}
+
+/* ---------- Firebase data helpers ---------- */
+function parseFbHorses(fbHorses){
+  if(!fbHorses)return[];
+  return Object.entries(fbHorses)
+    .map(([id,h])=>({
+      id:Number(id),
+      name:h.name||'',
+      waku:(h.waku!==undefined&&h.waku!==null)?Number(h.waku):null,
+      hande:(h.hande!==undefined&&h.hande!==null)?Number(h.hande):null,
+      sortOrder:Number(h.sortOrder)||0
+    }))
+    .sort((a,b)=>a.sortOrder-b.sortOrder);
+}
+function parseFbVotes(fbVotes){
+  if(!fbVotes)return[];
+  return Object.entries(fbVotes)
+    .map(([,v])=>({
+      name:v.name||'',
+      combos:Array.isArray(v.combos)?v.combos:[],
+      updatedAt:v.updatedAt||0
+    }))
+    .sort((a,b)=>a.updatedAt-b.updatedAt);
+}
+async function fetchRaceState(raceId){
+  const[race,horses,votes]=await Promise.all([
+    fbGet(`races/${raceId}`),
+    fbGet(`horses/${raceId}`),
+    fbGet(`votes/${raceId}`)
+  ]);
+  if(!race)return{error:'race_not_found'};
+  return{
+    raceId:Number(raceId),
+    raceName:race.name||'',
+    betType:race.betType||'umaren',
+    umatanPositions:[Number(race.umatanPosA)||1,Number(race.umatanPosB)||2],
+    result:{order:JSON.parse(race.resultOrder||'[]')},
+    unitStake:Number(race.unitStake)||DEFAULT_UNIT_STAKE,
+    closed:!!race.closed,
+    gameStyle:race.gameStyle||'shinperia',
+    horses:parseFbHorses(horses),
+    votes:parseFbVotes(votes)
+  };
+}
+async function fetchRaceList(){
+  const[allRaces,allHorses,allVotes]=await Promise.all([
+    fbGet('races'),
+    fbGet('horses'),
+    fbGet('votes')
+  ]);
+  if(!allRaces)return[];
+  return Object.entries(allRaces)
+    .map(([id,race])=>({
+      id:Number(id),
+      name:race.name||'',
+      betType:race.betType||'umaren',
+      horseCount:allHorses&&allHorses[id]?Object.keys(allHorses[id]).length:0,
+      voteCount:allVotes&&allVotes[id]?Object.keys(allVotes[id]).length:0,
+      hasResult:!!(race.resultOrder&&race.resultOrder!=='[]'&&race.resultOrder!==JSON.stringify([])),
+      closed:!!race.closed
+    }))
+    .sort((a,b)=>a.id-b.id);
+}
+
+/* ---------- sync status ---------- */
+function setSyncStatus(text,ok){
+  const el=$('apiStatus'); if(!el)return;
+  el.textContent=text; el.classList.remove('ok','bad'); el.classList.add(ok?'ok':'bad');
+}
+
+/* ---------- withRaceCheck: Firebase action wrapper ---------- */
+async function withRaceCheck(fn,okMsg){
+  if(!firebaseUrl){toast('先に「設定」でFirebase URLを登録してください');return false;}
+  if(!currentRaceId){toast('参加するには幹事から共有されたQRコードを読み取ってください');return false;}
+  try{
+    setSyncStatus('送信中…',true);
+    await fn();
+    await refresh(false);
+    setSyncStatus('同期済み',true);
+    if(okMsg)toast(okMsg);
+    return true;
+  }catch(e){
+    setSyncStatus('送信エラー',false);
+    toast('送信に失敗しました。通信状況を確認してください');
+    return false;
+  }
+}
+
+/* ---------- state application ---------- */
+function applyRaceState(s){
+  if(!s||s.error){
+    if(s&&s.error==='race_not_found'){
+      toast('このレースは見つかりません（削除された可能性があります）');
+      currentRaceId=null;
+      localStorage.removeItem(LS_RACE_ID_KEY);
+      state=emptyState();
+      renderAll();
+      switchTab(isSetupUnlocked()?'race':'vote');
+    }
+    return;
+  }
+  state={
+    raceId:s.raceId,
+    raceName:s.raceName||'',
+    horses:Array.isArray(s.horses)?s.horses:[],
+    votes:Array.isArray(s.votes)?s.votes:[],
+    result:{order:(s.result&&Array.isArray(s.result.order))?s.result.order:[]},
+    betType:s.betType||'umaren',
+    umatanPositions:(Array.isArray(s.umatanPositions)&&s.umatanPositions.length===2)?s.umatanPositions.map(Number):[1,2],
+    unitStake:Number(s.unitStake)||DEFAULT_UNIT_STAKE,
+    closed:!!s.closed,
+    gameStyle:s.gameStyle||'shinperia'
+  };
+  saveCache();
+  renderAll();
+}
+
+async function refresh(showError){
+  if(!firebaseUrl){setSyncStatus('未接続',false);return;}
+  if(!currentRaceId)return;
+  try{
+    const s=await fetchRaceState(currentRaceId);
+    applyRaceState(s);
+    setSyncStatus('同期済み',true);
+  }catch(e){
+    setSyncStatus('接続エラー',false);
+    if(showError)toast('サーバーに接続できません');
+  }
+}
+async function refreshRaceList(showError){
+  if(!firebaseUrl)return;
+  try{
+    raceList=await fetchRaceList();
+    saveRaceListCache();
+    renderRaceTab();
+    setSyncStatus('同期済み',true);
+  }catch(e){
+    setSyncStatus('接続エラー',false);
+    if(showError)toast('レース一覧の取得に失敗しました');
+  }
+}
+
+function startPolling(){
+  stopPolling();
+  if(!firebaseUrl)return;
+  pollTimer=setInterval(()=>{
+    if(currentRaceId)refresh(false);
+    const activeTab=document.querySelector('.tab.active');
+    if(activeTab&&activeTab.dataset.view==='race')refreshRaceList(false);
+  },POLL_MS);
+}
+function stopPolling(){ if(pollTimer){clearInterval(pollTimer);pollTimer=null;} }
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){stopPolling();}else{refresh(false);startPolling();}
+});
+window.addEventListener('focus',()=>{ if(firebaseUrl)refresh(false); });
+
+/* ---------- 幹事用パスワード保護 ---------- */
+function isSetupUnlocked(){ return sessionStorage.getItem(LS_UNLOCK_KEY)==='1'; }
+function showOrganizerTabs(unlocked){
+  document.querySelectorAll('.organizer-tab').forEach(t=>{
+    t.classList.toggle('hidden-tab',!unlocked);
+  });
+  $('organizerCheck').checked=unlocked;
+  if(!unlocked){
+    const active=document.querySelector('.tab.active');
+    if(active&&(active.dataset.view==='race'||active.dataset.view==='setup')){
+      switchTab('vote');
+    }
+  }
+}
+function confirmOrganizerPassword(){
+  const v=$('organizerPassword').value;
+  if(v===SETUP_PASSWORD){
+    sessionStorage.setItem(LS_UNLOCK_KEY,'1');
+    $('pwOverlay').style.display='none';
+    $('organizerPassword').value='';
+    showOrganizerTabs(true);
+    renderResultUI();
+    toast('幹事モードで解除しました');
+  }else{
+    toast('パスワードが違います');
+    $('organizerPassword').select();
+  }
+}
+$('organizerCheck').addEventListener('change',e=>{
+  if(e.target.checked){
+    if(isSetupUnlocked()){showOrganizerTabs(true);return;}
+    e.target.checked=false;
+    $('pwOverlay').style.display='flex';
+    $('organizerPassword').value='';
+    setTimeout(()=>$('organizerPassword').focus(),50);
+  }else{
+    sessionStorage.removeItem(LS_UNLOCK_KEY);
+    showOrganizerTabs(false);
+    renderResultUI();
+    toast('幹事モードを終了しました');
+  }
+});
+$('pwConfirm').addEventListener('click',confirmOrganizerPassword);
+$('pwCancel').addEventListener('click',()=>{
+  $('pwOverlay').style.display='none';
+  $('organizerPassword').value='';
+});
+$('organizerPassword').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();confirmOrganizerPassword();}
+  if(e.key==='Escape'){$('pwCancel').click();}
+});
+
+/* ---------- tabs ---------- */
+function switchTab(view){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===view));
+  document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+view));
+  if(view==='vote'){renderVoteLock();renderVoteHorseList();renderComboArea();renderVoteList();}
+  if(view==='tally'){renderResultUI();}
+  if(view==='race'){refreshRaceList(true);}
+  if(view==='setup'){renderSetupRaceLabel();}
+  if(firebaseUrl&&currentRaceId)refresh(false);
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>switchTab(t.dataset.view));
+});
+$('gotoRaceTabFromSetup').addEventListener('click',()=>switchTab('race'));
+
+/* ---------- SETUP: Firebase URL ---------- */
+$('saveFirebaseUrl').addEventListener('click',async ()=>{
+  const v=$('firebaseUrlInput').value.trim();
+  if(!v){toast('URLを入力してください');return;}
+  firebaseUrl=v; localStorage.setItem(LS_FB_URL_KEY,firebaseUrl);
+  toast('接続設定を保存しました');
+  await refreshRaceList(true);
+  if(currentRaceId) await refresh(true);
+  startPolling();
+});
+
+/* ---------- SETUP: レース名 ---------- */
+$('raceName').addEventListener('input',e=>{ $('raceLabel').textContent=e.target.value||'レース未選択'; });
+$('raceName').addEventListener('change',async e=>{
+  await withRaceCheck(async()=>{
+    await fbPatch(`races/${currentRaceId}`,{name:e.target.value});
+  });
+});
+function renderRaceName(){
+  const el=$('raceName');
+  if(document.activeElement!==el) el.value=state.raceName;
+  $('raceLabel').textContent=state.raceName||(currentRaceId?'レース未選択':'レース未選択');
+}
+function renderUnitStake(){
+  const el=$('unitStakeInput');
+  if(document.activeElement!==el) el.value=state.unitStake;
+}
+$('saveUnitStake').addEventListener('click',async ()=>{
+  const v=Number($('unitStakeInput').value);
+  if(!v||v<=0){toast('1以上の数値を入力してください');return;}
+  const ok=await withRaceCheck(async()=>{
+    await fbPatch(`races/${currentRaceId}`,{unitStake:v});
+  },'ポイント代を更新しました');
+  if(ok){ updateVoteTotal(); renderVoteList(); }
+});
+function renderSetupRaceLabel(){
+  $('setupRaceLabel').textContent=currentRaceId?(state.raceName||('レース #'+currentRaceId)):'レース未選択（「レース」タブで選択してください）';
+}
+
+/* ---------- SETUP: 出走馬 ---------- */
+$('addHorse').addEventListener('click',addHorse);
+$('horseInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addHorse();}});
+async function addHorse(){
+  const v=$('horseInput').value.trim();
+  if(!v){toast('出走者名を入力してください');return;}
+  const wv=$('horseWakuInput').value;
+  const waku=wv===''?null:+wv;
+  const hv=$('horseHandeInput').value;
+  const hande=(state.gameStyle==='hande'&&hv!=='')?+hv:null;
+  $('horseInput').value=''; $('horseWakuInput').value=''; $('horseHandeInput').value='';
+  const maxSortOrder=state.horses.length>0?Math.max(...state.horses.map(h=>h.sortOrder||0)):0;
+  const ok=await withRaceCheck(async()=>{
+    const newId=genId();
+    await fbSet(`horses/${currentRaceId}/${newId}`,{name:v,waku,hande,sortOrder:maxSortOrder+1});
+  });
+  if(ok)$('horseInput').focus();
+}
+function renderHorseList(){
+  const el=$('horseList');
+  $('horseCount').textContent=state.horses.length+'頭';
+  if(el.contains(document.activeElement))return;
+  if(state.horses.length===0){el.innerHTML='<div class="empty" style="padding:16px">まだ出走馬がいません</div>';renderVoteHorseList();return;}
+  const isHande=state.gameStyle==='hande';
+  el.innerHTML=state.horses.map((h,i)=>
+    `<div class="horse-li"><span class="horse-num">${i+1}</span>
+      <input type="text" class="horse-nm-input" data-id="${h.id}" value="${escapeHtml(h.name)}">
+      ${isHande?`<input type="number" class="horse-hande" data-id="${h.id}" value="${h.hande!=null?h.hande:''}" placeholder="HC" min="-99" max="99" step="0.5" style="flex:0 0 56px;padding:6px 4px;font-size:13px;text-align:center;border:1px solid var(--line);border-radius:8px;">`:''}
+      <input type="number" class="horse-waku" data-id="${h.id}" value="${h.waku!=null?h.waku:''}" min="1" max="8" placeholder="枠">
+      <button class="horse-move" data-dir="up" data-id="${h.id}" ${i===0?'disabled':''}>▲</button>
+      <button class="horse-move" data-dir="down" data-id="${h.id}" ${i===state.horses.length-1?'disabled':''}>▼</button>
+      <button class="horse-del" data-id="${h.id}">✕</button></div>`
+  ).join('');
+  el.querySelectorAll('.horse-del').forEach(b=>b.addEventListener('click',()=>removeHorse(+b.dataset.id)));
+  el.querySelectorAll('.horse-nm-input').forEach(inp=>inp.addEventListener('change',async ()=>{
+    const newName=inp.value.trim();
+    const h=state.horses.find(x=>x.id===+inp.dataset.id);
+    if(!newName){inp.value=h?h.name:'';toast('出走者名は空にできません');return;}
+    if(h&&newName===h.name)return;
+    await withRaceCheck(async()=>{
+      await fbPatch(`horses/${currentRaceId}/${inp.dataset.id}`,{name:newName});
+    });
+  }));
+  el.querySelectorAll('.horse-hande').forEach(inp=>inp.addEventListener('change',async ()=>{
+    const hv=inp.value;
+    await withRaceCheck(async()=>{
+      await fbPatch(`horses/${currentRaceId}/${inp.dataset.id}`,{hande:hv===''?null:+hv});
+    });
+  }));
+  el.querySelectorAll('.horse-waku').forEach(inp=>inp.addEventListener('change',async ()=>{
+    const wv=inp.value;
+    await withRaceCheck(async()=>{
+      await fbPatch(`horses/${currentRaceId}/${inp.dataset.id}`,{waku:wv===''?null:+wv});
+    });
+  }));
+  el.querySelectorAll('.horse-move').forEach(b=>b.addEventListener('click',()=>moveHorse(+b.dataset.id,b.dataset.dir)));
+  renderVoteHorseList();
+}
+async function moveHorse(id,dir){
+  const ids=state.horses.map(h=>h.id);
+  const i=ids.indexOf(id);
+  if(i<0)return;
+  const j=dir==='up'?i-1:i+1;
+  if(j<0||j>=ids.length)return;
+  [ids[i],ids[j]]=[ids[j],ids[i]];
+  await withRaceCheck(async()=>{
+    const updates={};
+    ids.forEach((hid,idx)=>{ updates[`horses/${currentRaceId}/${hid}/sortOrder`]=idx+1; });
+    await fbPatch('',updates);
+  });
+}
+function renderVoteHorseList(){
+  const el=$('voteHorseList'); if(!el)return;
+  $('voteHorseCount').textContent=state.horses.length+'名';
+  if(state.horses.length===0){
+    el.innerHTML='<div class="muted">出走者は未登録です。幹事にご連絡ください。</div>';return;
+  }
+  const isHande=state.gameStyle==='hande';
+  const hasWaku=state.betType==='wakuren'||state.horses.some(h=>h.waku!=null);
+  el.innerHTML=`<table class="odds-table">
+    <thead><tr>
+      ${hasWaku?'<th style="text-align:center">枠</th>':''}
+      <th style="text-align:center">番</th>
+      <th style="text-align:left;padding-left:10px">出走者名</th>
+      ${isHande?'<th style="text-align:right">HC</th>':''}
+    </tr></thead>
+    <tbody>${state.horses.map((h,i)=>`<tr>
+      ${hasWaku?`<td class="odds-waku-col">${h.waku!=null?`<span class="odds-waku-badge" style="${wakuBadgeStyle(h.waku)}">${h.waku}</span>`:''}</td>`:''}
+      <td class="odds-uma-num">${i+1}</td>
+      <td class="odds-name">${escapeHtml(h.name)}</td>
+      ${isHande?`<td class="odds-hc">${h.hande!=null?`HC${h.hande}`:''}</td>`:''}
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+async function removeHorse(horseId){
+  const h=state.horses.find(x=>x.id===horseId);
+  if(!confirm(`「${h?h.name:''}」を削除しますか？\n（この馬を含む投票も削除されます）`))return;
+  await withRaceCheck(async()=>{
+    await fbDelete(`horses/${currentRaceId}/${horseId}`);
+    const updates={};
+    const deletes=[];
+    for(const v of state.votes){
+      const key=voteKey(v.name);
+      const cleaned=v.combos.filter(c=>c[0]!==horseId&&c[1]!==horseId);
+      if(cleaned.length===0){
+        deletes.push(`votes/${currentRaceId}/${key}`);
+      }else if(cleaned.length!==v.combos.length){
+        updates[`votes/${currentRaceId}/${key}/combos`]=cleaned;
+      }
+    }
+    await Promise.all([
+      ...deletes.map(p=>fbDelete(p)),
+      Object.keys(updates).length>0?fbPatch('',updates):Promise.resolve()
+    ]);
+  });
+}
+$('resetAll').addEventListener('click',async ()=>{
+  if(!confirm('このレースの出走馬・投票・結果を削除して初期化します。よろしいですか？'))return;
+  await withRaceCheck(async()=>{
+    await Promise.all([
+      fbDelete(`horses/${currentRaceId}`),
+      fbDelete(`votes/${currentRaceId}`),
+      fbPatch(`races/${currentRaceId}`,{resultOrder:'[]'})
+    ]);
+  },'リセットしました');
+});
+
+/* ---------- RACE管理 ---------- */
+$('exportBackupBtn').addEventListener('click',exportBackup);
+async function exportBackup(){
+  if(!firebaseUrl){toast('先に「設定」でFirebase URLを登録してください');return;}
+  try{
+    toast('バックアップを作成中…');
+    const[allRaces,allHorses,allVotes]=await Promise.all([
+      fbGet('races'),fbGet('horses'),fbGet('votes')
+    ]);
+    const races=[];
+    if(allRaces){
+      for(const[raceId,race] of Object.entries(allRaces)){
+        const horses=parseFbHorses((allHorses||{})[raceId]);
+        const votes=parseFbVotes((allVotes||{})[raceId]);
+        let resultOrder=[];
+        try{resultOrder=JSON.parse(race.resultOrder||'[]');}catch(e){}
+        races.push({
+          id:Number(raceId),name:race.name||'',betType:race.betType||'umaren',
+          umatanPositions:[Number(race.umatanPosA)||1,Number(race.umatanPosB)||2],
+          resultOrder,unitStake:Number(race.unitStake)||DEFAULT_UNIT_STAKE,
+          closed:!!race.closed,gameStyle:race.gameStyle||'shinperia',
+          horses,votes
+        });
+      }
+    }
+    const blob=new Blob([JSON.stringify({races},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const ts=new Date().toISOString().replace(/[:.]/g,'-');
+    const a=document.createElement('a');
+    a.href=url; a.download=`keiba-baren-backup_${ts}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast('バックアップを保存しました');
+  }catch(e){
+    toast('バックアップの作成に失敗しました');
+  }
+}
+$('importBackupBtn').addEventListener('click',()=>$('backupFileInput').click());
+$('backupFileInput').addEventListener('change',async (e)=>{
+  const file=e.target.files[0];
+  e.target.value='';
+  if(!file)return;
+  if(!firebaseUrl){toast('先に「設定」でFirebase URLを登録してください');return;}
+  try{
+    const text=await file.text();
+    const data=JSON.parse(text);
+    if(!Array.isArray(data.races)){toast('ファイルの形式が正しくありません');return;}
+    if(!confirm(`${data.races.length}件のレースを追加で復元します。よろしいですか？`))return;
+    toast('復元中…');
+    for(const race of data.races){
+      const newRaceId=genId();
+      const horseIdMap={};
+      const updates={};
+      const resultOrderSrc=Array.isArray(race.resultOrder)?race.resultOrder:
+        (race.result&&Array.isArray(race.result.order))?race.result.order:[];
+      (race.horses||[]).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0)).forEach((h,i)=>{
+        const newHorseId=genId();
+        horseIdMap[h.id]=newHorseId;
+        updates[`horses/${newRaceId}/${newHorseId}`]={
+          name:h.name||'',waku:h.waku??null,hande:h.hande??null,sortOrder:i+1
+        };
+      });
+      const translatedResult=resultOrderSrc.map(id=>id!=null?(horseIdMap[id]??id):null);
+      updates[`races/${newRaceId}`]={
+        name:race.name||'',betType:race.betType||'umaren',
+        umatanPosA:(race.umatanPositions&&race.umatanPositions[0])||1,
+        umatanPosB:(race.umatanPositions&&race.umatanPositions[1])||2,
+        resultOrder:JSON.stringify(translatedResult),createdAt:newRaceId,
+        unitStake:race.unitStake||DEFAULT_UNIT_STAKE,closed:false,
+        gameStyle:race.gameStyle||'shinperia'
+      };
+      const betType=race.betType||'umaren';
+      (race.votes||[]).forEach(v=>{
+        const key=voteKey(v.name);
+        const translatedCombos=(v.combos||[]).map(c=>{
+          if(betType==='wakuren')return c;
+          return[horseIdMap[c[0]]??c[0],horseIdMap[c[1]]??c[1]];
+        });
+        updates[`votes/${newRaceId}/${key}`]={name:v.name,combos:translatedCombos,updatedAt:v.updatedAt||Date.now()};
+      });
+      await fbPatch('',updates);
+    }
+    await refreshRaceList(false);
+    toast('復元しました');
+  }catch(e){
+    toast('復元に失敗しました（ファイル形式を確認してください）');
+  }
+});
+$('createRaceBtn').addEventListener('click',createRace);
+$('newRaceName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();createRace();}});
+async function createRace(){
+  if(!firebaseUrl){toast('先に「設定」でFirebase URLを登録してください');return;}
+  const name=$('newRaceName').value.trim();
+  if(!name){toast('レース名を入力してください');return;}
+  try{
+    setSyncStatus('送信中…',true);
+    const newId=genId();
+    await fbSet(`races/${newId}`,{
+      name,betType:'umaren',umatanPosA:1,umatanPosB:2,
+      resultOrder:'[]',createdAt:newId,
+      unitStake:DEFAULT_UNIT_STAKE,closed:false,gameStyle:'shinperia'
+    });
+    $('newRaceName').value='';
+    await refreshRaceList(false);
+    selectRace(newId);
+    setSyncStatus('同期済み',true);
+    toast('レースを作成しました');
+  }catch(e){
+    setSyncStatus('送信エラー',false);
+    toast('作成に失敗しました');
+  }
+}
+function selectRace(id){
+  currentRaceId=id;
+  localStorage.setItem(LS_RACE_ID_KEY,String(id));
+  let cached=null;
+  try{cached=JSON.parse(localStorage.getItem(LS_CACHE_PREFIX+id));}catch(e){}
+  state=cached?Object.assign(emptyState(),cached):emptyState();
+  renderAll();
+  refresh(true);
+  if(!pollTimer)startPolling();
+}
+async function deleteRace(id){
+  const r=raceList.find(x=>x.id===id);
+  if(!confirm(`「${r?r.name:('レース #'+id)}」を削除しますか？\n出走馬・投票・結果もすべて削除されます。`))return;
+  try{
+    setSyncStatus('送信中…',true);
+    await Promise.all([
+      fbDelete(`races/${id}`),
+      fbDelete(`horses/${id}`),
+      fbDelete(`votes/${id}`)
+    ]);
+    localStorage.removeItem(LS_CACHE_PREFIX+id);
+    if(id===currentRaceId){
+      currentRaceId=null;
+      localStorage.removeItem(LS_RACE_ID_KEY);
+      state=emptyState();
+      renderAll();
+      toast('選択中のレースを削除しました。別のレースを選択してください');
+    }else{
+      toast('レースを削除しました');
+    }
+    await refreshRaceList(false);
+    setSyncStatus('同期済み',true);
+  }catch(e){
+    setSyncStatus('送信エラー',false);
+    toast('削除に失敗しました');
+  }
+}
+function showRaceQr(id){
+  if(!firebaseUrl){toast('先に「設定」でURLを保存してください');return;}
+  const link=location.origin+location.pathname+'?db='+encodeURIComponent(firebaseUrl)+'&race='+id;
+  $('raceQrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(link);
+  const r=raceList.find(x=>x.id===id);
+  $('raceQrLabel').textContent=r?r.name:('レース #'+id);
+  $('raceQrCard').style.display='';
+}
+function renderRaceTab(){
+  $('raceListCount').textContent=raceList.length+'件';
+  const el=$('raceListArea');
+  if(raceList.length===0){
+    el.innerHTML='<div class="empty">まだレースがありません。上の「新しいレースを追加」から作成してください。</div>';
+    return;
+  }
+  const unlocked=isSetupUnlocked();
+  el.innerHTML=raceList.map(r=>{
+    const sel=r.id===currentRaceId;
+    return `<div class="race-card${sel?' selected':''}">
+      <div class="race-card-top">
+        <span class="race-card-name">${escapeHtml(r.name)}</span>
+        <span>${sel?'<span class="badge badge-sel">選択中</span>':''}${r.closed?'<span class="badge badge-closed">締め切り中</span>':''}</span>
+      </div>
+      <div class="muted">${BET_TYPE_LABELS[r.betType]||r.betType}・出走馬${r.horseCount}頭・投票${r.voteCount}人${r.hasResult?'・結果入力済み':''}</div>
+      <div class="race-card-actions">
+        ${unlocked?`<button class="btn btn-green btn-sm select-race" data-id="${r.id}" ${sel?'disabled':''}>${sel?'選択中':'選択する'}</button>`:''}
+        ${unlocked?`<button class="btn ${r.closed?'btn-ghost':'btn-primary'} btn-sm close-race" data-id="${r.id}" data-closed="${r.closed?'1':'0'}">${r.closed?'🔓 受付再開':'🔒 締め切る'}</button>`:''}
+        ${unlocked?`<button class="btn btn-ghost btn-sm qr-race" data-id="${r.id}">📱 QR</button>`:''}
+        ${unlocked?`<button class="btn btn-danger btn-sm del-race" data-id="${r.id}">🗑 削除</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.select-race').forEach(b=>b.addEventListener('click',()=>{selectRace(+b.dataset.id);toast('レースを選択しました');}));
+  el.querySelectorAll('.close-race').forEach(b=>b.addEventListener('click',()=>toggleRaceClosed(+b.dataset.id,b.dataset.closed==='1')));
+  el.querySelectorAll('.qr-race').forEach(b=>b.addEventListener('click',()=>showRaceQr(+b.dataset.id)));
+  el.querySelectorAll('.del-race').forEach(b=>b.addEventListener('click',()=>deleteRace(+b.dataset.id)));
+}
+async function toggleRaceClosed(id,currentlyClosed){
+  const newClosed=!currentlyClosed;
+  try{
+    setSyncStatus('送信中…',true);
+    await fbPatch(`races/${id}`,{closed:newClosed});
+    await refreshRaceList(false);
+    if(id===currentRaceId)await refresh(false);
+    setSyncStatus('同期済み',true);
+    toast(newClosed?'投票を締め切りました':'投票を再開しました');
+  }catch(e){
+    setSyncStatus('送信エラー',false);
+    toast('操作に失敗しました');
+  }
+}
+
+/* ---------- VOTE ---------- */
+function horseOptions(selectedId){
+  let o='<option value="">— 選択 —</option>';
+  state.horses.forEach((h,i)=>{
+    const wk=h.waku!=null?`（${h.waku}枠）`:'';
+    const hc=state.gameStyle==='hande'&&h.hande!=null?` HC${h.hande}`:'';
+    o+=`<option value="${h.id}"${String(selectedId)===String(h.id)?' selected':''}>${i+1}. ${escapeHtml(h.name)}${wk}${hc}</option>`;
+  });
+  return o;
+}
+function wakuOptions(selectedWaku){
+  let o='<option value="">— 枠を選択 —</option>';
+  wakuList().forEach(w=>{
+    o+=`<option value="${w.waku}"${String(selectedWaku)===String(w.waku)?' selected':''}>${w.waku}枠（${w.horses.map(escapeHtml).join('・')}）</option>`;
+  });
+  return o;
+}
+function positionOptions(selectedPos){
+  const n=Math.max(state.horses.length,2);
+  let o='';
+  for(let p=1;p<=n;p++){
+    o+=`<option value="${p}"${String(selectedPos)===String(p)?' selected':''}>${p}着</option>`;
+  }
+  return o;
+}
+function renderComboArea(){
+  const area=$('comboArea');
+  if(!currentRaceId){
+    area.innerHTML='<div class="muted">参加するには幹事から共有されたQRコードを読み取ってください。</div>';
+    $('addCombo').style.display='none';
+    return;
+  }
+  if(state.betType==='wakuren'){
+    if(wakuList().length<2){
+      area.innerHTML='<div class="muted">先に「設定」で2つ以上の枠番を設定してください。</div>';
+      $('addCombo').style.display='none';
+      return;
+    }
+  }else if(state.horses.length<2){
+    area.innerHTML='<div class="muted">先に「設定」で出走馬を2頭以上入力してください。</div>';
+    $('addCombo').style.display='none';
+    return;
+  }
+  $('addCombo').style.display='';
+  if(area.querySelectorAll('.combo-row').length===0){
+    area.innerHTML='';
+    for(let i=0;i<MIN_COMBO;i++) addComboRow();
+  }
+  updateVoteTotal();
+}
+function addComboRow(){
+  const rows=$('comboArea').querySelectorAll('.combo-row');
+  if(rows.length>=MAX_COMBO){toast(`${betTypeLabel()}は最大${MAX_COMBO}点までです`);return;}
+  const div=document.createElement('div');
+  div.className='combo-row';
+  if(state.betType==='umatan'){
+    const[posA,posB]=umatanPositions();
+    div.innerHTML=`<div class="combo-slot"><span class="slot-label">${posA}着</span><select class="ca">${horseOptions(null)}</select></div>
+      <span class="x">→</span>
+      <div class="combo-slot"><span class="slot-label">${posB}着</span><select class="cb">${horseOptions(null)}</select></div>
+      <button class="del">✕</button>`;
+  }else{
+    const isWakuren=state.betType==='wakuren';
+    div.innerHTML=`<select class="ca">${isWakuren?wakuOptions(null):horseOptions(null)}</select>
+      <span class="x">―</span>
+      <select class="cb">${isWakuren?wakuOptions(null):horseOptions(null)}</select>
+      <button class="del">✕</button>`;
+  }
+  div.querySelector('.del').addEventListener('click',()=>{div.remove();updateVoteTotal();});
+  div.querySelectorAll('select').forEach(s=>s.addEventListener('change',updateVoteTotal));
+  $('comboArea').appendChild(div);
+  updateVoteTotal();
+}
+$('addCombo').addEventListener('click',()=>addComboRow());
+function readCombos(){
+  const combos=[]; let err=null;
+  $('comboArea').querySelectorAll('.combo-row').forEach(r=>{
+    const a=r.querySelector('.ca').value, b=r.querySelector('.cb').value;
+    if(a===''&&b==='')return;
+    if(a===''||b===''){err='未選択の項目がある組があります';return;}
+    if(a===b){
+      if(state.betType==='wakuren'){
+        const w=wakuList().find(x=>String(x.waku)===String(a));
+        if(!w||w.horses.length<2){err='この枠には馬が1頭しかいないため、同じ枠は選べません';return;}
+      }else{
+        err='同じ馬どうしは選べません';return;
+      }
+    }
+    combos.push([+a,+b]);
+  });
+  return{combos,err};
+}
+function updateVoteTotal(){
+  const{combos}=readCombos();
+  $('voteTotal').textContent=(combos.length*state.unitStake).toLocaleString()+' pt';
+}
+$('submitVote').addEventListener('click',async ()=>{
+  const name=$('voterName').value.trim();
+  if(!name){toast('名前を入力してください');return;}
+  const{combos,err}=readCombos();
+  if(err){toast(err);return;}
+  if(combos.length<MIN_COMBO){toast(`${betTypeLabel()}を${MIN_COMBO}点以上選んでください`);return;}
+  if(state.closed){toast('このレースは締め切られています');return;}
+  const existed=state.votes.some(v=>v.name===name);
+  const ok=await withRaceCheck(async()=>{
+    if(state.closed)throw new Error('race_closed');
+    await fbSet(`votes/${currentRaceId}/${voteKey(name)}`,{name,combos,updatedAt:Date.now()});
+  });
+  if(ok){
+    $('voterName').value='';
+    $('comboArea').innerHTML=''; for(let i=0;i<MIN_COMBO;i++) addComboRow();
+    toast(existed?'投票を更新しました':'投票しました');
+    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+  }
+});
+function renderVoteLock(){
+  $('voteClosedNotice').style.display=state.closed?'':'none';
+  $('voteFormFields').style.display=state.closed?'none':'';
+}
+function renderVoteList(){
+  const el=$('voteList');
+  $('voteCount').textContent=state.votes.length+'人';
+  if(state.votes.length===0){el.innerHTML='<div class="empty">まだ投票がありません</div>';return;}
+  el.innerHTML=state.votes.map(v=>{
+    const pairs=v.combos.map(c=>{
+      const hit=isHit(c);
+      return `<span class="bet-pair${hit?' hit':''}">${comboLabel(c)}</span>`;
+    }).join('');
+    const stake=(v.combos.length*state.unitStake).toLocaleString();
+    return `<div class="vote-item">
+      <div class="top"><span class="name">${escapeHtml(v.name)}</span>
+        <span><span class="badge">${v.combos.length}点 / ${stake}pt</span>
+        ${isSetupUnlocked()&&!state.closed?`<button class="btn btn-danger btn-sm" data-name="${escapeHtml(v.name)}" style="margin-left:6px">削除</button>`:''}</span>
+      </div>
+      <div>${pairs}</div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('[data-name]').forEach(b=>b.addEventListener('click',async ()=>{
+    const name=b.dataset.name;
+    if(!confirm(`${name} の投票を削除しますか？`))return;
+    await withRaceCheck(async()=>{
+      await fbDelete(`votes/${currentRaceId}/${voteKey(name)}`);
+    });
+  }));
+}
+
+/* ---------- TALLY ---------- */
+function renderResultUI(){
+  if(!currentRaceId){$('resultArea').innerHTML='';return;}
+  const[posA,posB]=activePositions();
+  $('resultPosALabel').textContent=posA+'着';
+  $('resultPosBLabel').textContent=posB+'着';
+  const unlocked=isSetupUnlocked();
+  $('resultLockHint').style.display=unlocked?'none':'';
+  ['firstPlace','secondPlace'].forEach((id,i)=>{
+    const el=$(id); if(document.activeElement===el)return;
+    const current=i===0?resultAt(posA):resultAt(posB);
+    el.innerHTML=horseOptions(current);
+    el.disabled=!unlocked;
+  });
+}
+$('firstPlace').addEventListener('change',async e=>{
+  const[posA]=activePositions();
+  const val=e.target.value===''?null:+e.target.value;
+  const order=setResultAt(posA,val);
+  await withRaceCheck(async()=>{
+    await fbPatch(`races/${currentRaceId}`,{resultOrder:JSON.stringify(order)});
+  });
+});
+$('secondPlace').addEventListener('change',async e=>{
+  const[,posB]=activePositions();
+  const val=e.target.value===''?null:+e.target.value;
+  const order=setResultAt(posB,val);
+  await withRaceCheck(async()=>{
+    await fbPatch(`races/${currentRaceId}`,{resultOrder:JSON.stringify(order)});
+  });
+});
+$('calcBtn').addEventListener('click',()=>{
+  if(!currentRaceId){toast('「レース」タブでレースを選択してください');return;}
+  const[posA,posB]=activePositions();
+  if(resultFirst()===null||resultSecond()===null){toast(`${posA}着・${posB}着を選んでください`);return;}
+  if(resultFirst()===resultSecond()){toast('同じ馬を2つの着順に指定することはできません');return;}
+  if(state.betType==='wakuren'&&(horseWaku(resultFirst())===null||horseWaku(resultSecond())===null)){
+    toast('1着・2着の馬に枠番が設定されていません');return;
+  }
+  if(state.votes.length===0){toast('投票がありません');return;}
+  renderResult();
+});
+function renderResult(){
+  if(state.betType==='wakuren'&&(horseWaku(resultFirst())===null||horseWaku(resultSecond())===null)){
+    $('resultArea').innerHTML='<div class="card"><div class="empty">1着・2着の馬に枠番が設定されていません。「設定」タブで枠番を入力してください。</div></div>';
+    return;
+  }
+  const[posA,posB]=activePositions();
+  const unit=state.unitStake;
+  const totalBets=state.votes.reduce((s,v)=>s+v.combos.length,0);
+  const pot=totalBets*unit;
+  const hitCounts=state.votes.map(v=>v.combos.filter(c=>isHit(c)).length);
+  const totalHits=hitCounts.reduce((s,n)=>s+n,0);
+  const payoutPerHit=totalHits>0?Math.floor(pot/totalHits):0;
+  const odds=totalHits>0?(payoutPerHit/unit):0;
+  const winners=state.votes.filter((v,i)=>hitCounts[i]>0);
+  const labelArgs=state.betType==='wakuren'
+    ?[horseWaku(resultFirst()),horseWaku(resultSecond())]
+    :[resultFirst(),resultSecond()];
+  const resultLabelText=`${comboLabel(labelArgs)}（${posA}着 ${horseNameById(resultFirst())} ― ${posB}着 ${horseNameById(resultSecond())}）`;
+  const headerHtml=`<div style="text-align:center;margin:6px 0 12px">
+    <span class="pill">${comboLabel(labelArgs)}</span>
+    <div class="muted" style="margin-top:8px">
+      ${posA}着 ${escapeHtml(horseNameById(resultFirst()))} ― ${posB}着 ${escapeHtml(horseNameById(resultSecond()))}
+    </div>
+  </div>`;
+  let html=`<div class="card">
+    <h2>🏆 的中組み合わせ</h2>
+    ${headerHtml}
+    <div class="total-line"><span>参加人数</span><span>${state.votes.length}人</span></div>
+    <div class="total-line"><span>総投票点数</span><span>${totalBets}点</span></div>
+    <div class="total-line"><span>総額（プール）</span><span>${pot.toLocaleString()} pt</span></div>
+    <div class="total-line"><span>的中者</span><span>${winners.length}人 / ${totalHits}点</span></div>
+    <div class="total-line big"><span>1点あたり配当</span><span>${payoutPerHit.toLocaleString()} pt</span></div>
+    <div class="muted" style="text-align:right">（配当率 約${odds.toFixed(1)}倍）</div>
+    <button class="btn btn-green btn-block" id="exportExcelBtn" style="margin-top:12px">📥 Excelで保存</button>
+  </div>`;
+  if(winners.length>0){
+    html+=`<div class="card"><h2>🎉 的中者</h2>`;
+    state.votes.forEach((v,i)=>{
+      if(hitCounts[i]===0)return;
+      const stake=v.combos.length*unit;
+      const payout=hitCounts[i]*payoutPerHit;
+      const net=payout-stake;
+      html+=`<div class="winner-row">
+        <span class="nm">${escapeHtml(v.name)} <span class="muted">(${hitCounts[i]}点的中)</span></span>
+        <span>配当 ${payout.toLocaleString()}pt
+          <span class="${net>=0?'plus':'minus'}">(${net>=0?'+':''}${net.toLocaleString()})</span>
+        </span>
+      </div>`;
+    });
+    html+=`<div class="hint">配当 = 総額を的中点数で配分（的中点数 × 1点あたり配当）。括弧内はポイント代を差し引いた収支です。</div></div>`;
+  }else{
+    html+=`<div class="card"><div class="empty">的中者はいませんでした 😢<br>総額 ${pot.toLocaleString()}pt はキャリーオーバー or 親の総取り。</div></div>`;
+  }
+  html+=`<div class="card"><h2>📊 全員の収支</h2>`;
+  const rows=state.votes.map((v,i)=>{
+    const stake=v.combos.length*unit;
+    const payout=hitCounts[i]*payoutPerHit;
+    const net=payout-stake;
+    html+=`<div class="total-line"><span>${escapeHtml(v.name)} <span class="muted">(${v.combos.length}点)</span></span>
+      <span class="${net>=0?'plus':'minus'}">${net>=0?'+':''}${net.toLocaleString()} pt</span></div>`;
+    return{name:v.name,comboCount:v.combos.length,stake,hitCount:hitCounts[i],payout,net};
+  });
+  html+=`</div>`;
+  $('resultArea').innerHTML=html;
+  lastExportPayload={resultLabel:resultLabelText,pot,totalBets,payoutPerHit,odds,rows};
+  $('exportExcelBtn').addEventListener('click',exportToExcel);
+}
+function exportToExcel(){
+  if(!lastExportPayload){toast('先に集計してください');return;}
+  const{resultLabel,pot,totalBets,payoutPerHit,odds,rows}=lastExportPayload;
+  const raceName=state.raceName||'レース';
+  const betLabel=BET_TYPE_LABELS[state.betType]||'馬連';
+  const tableHtml=`<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif">
+    <tr><th colspan="6" style="background:#0d3b66;color:#fff;font-size:14px">${escapeHtml(raceName)} 集計結果</th></tr>
+    <tr><td>投票方式</td><td>${betLabel}</td><td>的中</td><td colspan="3">${escapeHtml(resultLabel)}</td></tr>
+    <tr><td>参加人数</td><td>${state.votes.length}人</td><td>総投票点数</td><td>${totalBets}点</td><td>総額</td><td>${pot.toLocaleString()}pt</td></tr>
+    <tr><td>1点あたり配当</td><td>${payoutPerHit.toLocaleString()}pt</td><td>配当率</td><td colspan="3">約${odds.toFixed(1)}倍</td></tr>
+    <tr style="background:#0d3b66;color:#fff"><th>名前</th><th>点数</th><th>ポイント代</th><th>的中点数</th><th>配当</th><th>収支</th></tr>
+    ${rows.map(r=>`<tr>
+      <td>${escapeHtml(r.name)}</td><td style="text-align:right">${r.comboCount}</td>
+      <td style="text-align:right">${r.stake.toLocaleString()}</td>
+      <td style="text-align:right">${r.hitCount}</td>
+      <td style="text-align:right">${r.payout.toLocaleString()}</td>
+      <td style="text-align:right;color:${r.net>=0?'green':'red'}">${r.net>=0?'+':''}${r.net.toLocaleString()}</td>
+    </tr>`).join('')}
+  </table>`;
+  const fullHtml=`<html><head><meta charset="UTF-8"></head><body>${tableHtml}</body></html>`;
+  const blob=new Blob(['﻿'+fullHtml],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const ts=new Date().toISOString().slice(0,19).replace(/[T:]/g,'-');
+  const a=document.createElement('a');
+  a.href=url; a.download=`${raceName}_集計_${ts}.xls`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('Excelファイルをダウンロードしました');
+}
+
+/* ---------- 競技方式 ---------- */
+function renderGameStyleUI(){
+  document.querySelectorAll('#gameStyleSegmented input[name="gameStyle"]').forEach(inp=>{
+    inp.checked=inp.value===state.gameStyle;
+    inp.closest('label').classList.toggle('checked',inp.checked);
+  });
+  const isHande=state.gameStyle==='hande';
+  $('horseHandeInput').style.display=isHande?'':'none';
+  $('horseInputHint').textContent=isHande
+    ?'名前とハンデキャップを入れて追加。▲▼で並べ替えると馬番が変わります。'
+    :'名前を入れて追加。枠番は任意（後から各馬の欄で変更できます）。▲▼で並べ替えると馬番が変わります。';
+}
+document.querySelectorAll('#gameStyleSegmented input[name="gameStyle"]').forEach(inp=>{
+  inp.addEventListener('change',async ()=>{
+    const newStyle=inp.value;
+    if(newStyle===state.gameStyle)return;
+    await withRaceCheck(async()=>{
+      await fbPatch(`races/${currentRaceId}`,{gameStyle:newStyle});
+    },'競技方式を変更しました');
+  });
+});
+
+/* ---------- 投票方式 ---------- */
+function renderBetTypeUI(){
+  document.querySelectorAll('#betTypeSegmented input[name="betType"]').forEach(inp=>{
+    inp.checked=inp.value===state.betType;
+    inp.closest('label').classList.toggle('checked',inp.checked);
+  });
+  $('comboLabel').textContent=`${betTypeLabel()}（${MIN_COMBO}〜${MAX_COMBO}点）`;
+  const hints={
+    umaren:'馬連は1着・2着の組み合わせ（順不同）が的中です。',
+    umatan:'馬単は指定した着順どうしの組み合わせ（順序通り）が的中です。',
+    wakuren:'枠連は1着・2着の枠番の組み合わせ（順不同）が的中です。'
+  };
+  $('tallyHint').textContent=hints[state.betType]||hints.umaren;
+  renderUmatanPosConfig();
+}
+function renderUmatanPosConfig(){
+  const wrap=$('umatanPosConfig');
+  if(state.betType!=='umatan'){wrap.style.display='none';return;}
+  wrap.style.display='';
+  const[posA,posB]=umatanPositions();
+  if(document.activeElement!==$('umatanPosA')) $('umatanPosA').innerHTML=positionOptions(posA);
+  if(document.activeElement!==$('umatanPosB')) $('umatanPosB').innerHTML=positionOptions(posB);
+}
+async function changeUmatanPosition(which,val){
+  const[posA,posB]=umatanPositions();
+  const newA=which==='A'?val:posA, newB=which==='B'?val:posB;
+  if(newA===newB){toast('1つ目と2つ目で同じ着順は指定できません');renderUmatanPosConfig();return;}
+  if(!confirm('予想着順を変更すると、現在の投票・結果はすべてリセットされます。よろしいですか？')){
+    renderUmatanPosConfig();return;
+  }
+  await withRaceCheck(async()=>{
+    await Promise.all([
+      fbPatch(`races/${currentRaceId}`,{umatanPosA:newA,umatanPosB:newB,resultOrder:'[]'}),
+      fbDelete(`votes/${currentRaceId}`)
+    ]);
+  });
+}
+$('umatanPosA').addEventListener('change',e=>changeUmatanPosition('A',+e.target.value));
+$('umatanPosB').addEventListener('change',e=>changeUmatanPosition('B',+e.target.value));
+document.querySelectorAll('#betTypeSegmented input[name="betType"]').forEach(inp=>{
+  inp.addEventListener('change',async ()=>{
+    const newType=inp.value;
+    if(newType===state.betType)return;
+    if(!confirm('投票方式を変更すると、現在の投票・結果はすべてリセットされます。よろしいですか？')){
+      renderBetTypeUI();return;
+    }
+    await withRaceCheck(async()=>{
+      await Promise.all([
+        fbPatch(`races/${currentRaceId}`,{betType:newType,resultOrder:'[]'}),
+        fbDelete(`votes/${currentRaceId}`)
+      ]);
+    });
+  });
+});
+
+/* ---------- 全体再描画 ---------- */
+function renderAll(){
+  renderRaceName();
+  renderUnitStake();
+  renderGameStyleUI();
+  renderHorseList();
+  renderBetTypeUI();
+  renderSetupRaceLabel();
+  const posKey=state.betType==='umatan'?umatanPositions().join('-'):null;
+  const betChanged=lastBetType!==null&&lastBetType!==state.betType;
+  const posChanged=!betChanged&&state.betType==='umatan'&&lastUmatanPosKey!==null&&lastUmatanPosKey!==posKey;
+  if(betChanged||posChanged){
+    $('comboArea').innerHTML='';
+    renderComboArea();
+    toast(betChanged?`投票方式が${betTypeLabel()}に変更されました`:'予想着順が変更されました');
+  }
+  lastBetType=state.betType;
+  lastUmatanPosKey=posKey;
+  renderVoteLock();
+  renderVoteList();
+  renderResultUI();
+  renderRaceTab();
+}
+
+/* ---------- init ---------- */
+function initUI(){
+  loadCache();
+  loadRaceListCache();
+  $('firebaseUrlInput').value=firebaseUrl;
+  showOrganizerTabs(isSetupUnlocked());
+  renderRaceName();
+  renderUnitStake();
+  renderGameStyleUI();
+  renderHorseList();
+  renderBetTypeUI();
+  renderSetupRaceLabel();
+  lastBetType=state.betType;
+  lastUmatanPosKey=state.betType==='umatan'?umatanPositions().join('-'):null;
+  renderVoteLock();
+  $('comboArea').innerHTML='';
+  renderComboArea();
+  renderVoteList();
+  renderResultUI();
+  $('resultArea').innerHTML='';
+  if(firebaseUrl){
+    setSyncStatus('読み込み中…',true);
+    refreshRaceList(true);
+    if(currentRaceId)refresh(true);
+    startPolling();
+  }else{
+    setSyncStatus('未接続',false);
+  }
+}
+initUI();
+</script>
+</body>
+</html>
