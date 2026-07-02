@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0d3b66">
 <title>馬券投票・集計 v3</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --green:#0d3b66; --green2:#1864ab; --accent:#f5b301; --accent2:#e29400;
@@ -221,7 +222,7 @@
       <h2>📱 共有用QRコード</h2>
       <div style="text-align:center">
         <div class="muted" id="raceQrLabel"></div>
-        <img id="raceQrImg" alt="QRコード" style="width:260px;height:260px;border:1px solid var(--line);border-radius:12px;margin-top:8px;display:block;margin-left:auto;margin-right:auto">
+        <div id="raceQrContainer" style="display:inline-block;margin-top:8px;border:1px solid var(--line);border-radius:12px;overflow:hidden;padding:10px;background:#fff"></div>
         <div style="margin-top:10px">
           <a id="raceQrLink" href="#" target="_blank" style="font-size:13px;color:var(--green2);word-break:break-all;display:block;padding:6px 0">🔗 リンクを直接開く</a>
           <button class="btn btn-ghost btn-sm" id="copyQrLink" style="margin-top:4px">📋 リンクをコピー</button>
@@ -1074,10 +1075,12 @@ async function deleteRace(id){
 function showRaceQr(id){
   if(!firebaseUrl){toast('先に「設定」でURLを保存してください');return;}
   const link=location.origin+location.pathname+'?db='+encodeURIComponent(firebaseUrl)+'&race='+id;
-  $('raceQrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=400x400&ecc=L&data='+encodeURIComponent(link);
   const r=raceList.find(x=>x.id===id);
   $('raceQrLabel').textContent=r?r.name:('レース #'+id);
   $('raceQrCard').style.display='';
+  const container=$('raceQrContainer');
+  container.innerHTML='';
+  new QRCode(container,{text:link,width:256,height:256,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.L});
   $('raceQrLink').href=link;
   $('copyQrLink').onclick=()=>{
     navigator.clipboard.writeText(link).then(()=>toast('リンクをコピーしました')).catch(()=>{
