@@ -372,7 +372,7 @@
 
 <div class="pw-overlay" id="pwOverlay" style="display:none">
   <div class="pw-dialog">
-    <div class="pw-title">🔑 幹事モード</div>
+    <div class="pw-title" id="pwTitle">🔑 幹事モード</div>
     <input type="password" id="organizerPassword" placeholder="パスワード" autocomplete="off"
       style="text-align:center;letter-spacing:2px;margin-bottom:14px">
     <div class="pw-actions">
@@ -393,6 +393,8 @@ const DEFAULT_UNIT_STAKE = 500;
 const POLL_MS = 5000;
 const SETUP_PASSWORD = 'golf';
 const LS_UNLOCK_KEY = 'baren_setup_unlocked';
+const EXCEL_PASSWORD = 'mk720803';
+const LS_EXCEL_UNLOCK_KEY = 'baren_excel_unlocked';
 const BET_TYPE_LABELS = {umaren:'馬連', umatan:'馬単', wakuren:'枠連'};
 
 let firebaseUrl = localStorage.getItem(LS_FB_URL_KEY) || '';
@@ -419,6 +421,7 @@ let pollTimer = null;
 let lastBetType = null;
 let lastUmatanPosKey = null;
 let lastExportPayload = null;
+let _pwMode = 'organizer';
 
 /* ---------- helpers ---------- */
 function $(id){return document.getElementById(id);}
@@ -731,13 +734,33 @@ $('organizerCheck').addEventListener('change',e=>{
     toast('幹事モードを終了しました');
   }
 });
-$('pwConfirm').addEventListener('click',confirmOrganizerPassword);
+function isExcelUnlocked(){ return sessionStorage.getItem(LS_EXCEL_UNLOCK_KEY)==='1'; }
+function confirmExcelPassword(){
+  const v=$('organizerPassword').value;
+  if(v===EXCEL_PASSWORD){
+    sessionStorage.setItem(LS_EXCEL_UNLOCK_KEY,'1');
+    $('pwOverlay').style.display='none';
+    $('organizerPassword').value='';
+    _pwMode='organizer';
+    $('pwTitle').textContent='🔑 幹事モード';
+    toast('Excel出力を解除しました');
+    exportToExcel();
+  }else{
+    toast('パスワードが違います');
+    $('organizerPassword').select();
+  }
+}
+$('pwConfirm').addEventListener('click',()=>{
+  _pwMode==='excel'?confirmExcelPassword():confirmOrganizerPassword();
+});
 $('pwCancel').addEventListener('click',()=>{
   $('pwOverlay').style.display='none';
   $('organizerPassword').value='';
+  _pwMode='organizer';
+  $('pwTitle').textContent='🔑 幹事モード';
 });
 $('organizerPassword').addEventListener('keydown',e=>{
-  if(e.key==='Enter'){e.preventDefault();confirmOrganizerPassword();}
+  if(e.key==='Enter'){e.preventDefault();_pwMode==='excel'?confirmExcelPassword():confirmOrganizerPassword();}
   if(e.key==='Escape'){$('pwCancel').click();}
 });
 
@@ -1331,8 +1354,9 @@ function renderResult(){
   const pot=totalBets*unit;
   const hitCounts=state.votes.map(v=>v.combos.filter(c=>isHit(c)).length);
   const totalHits=hitCounts.reduce((s,n)=>s+n,0);
-  const payoutPerHit=totalHits>0?Math.floor(pot/totalHits):0;
-  const odds=totalHits>0?(payoutPerHit/unit):0;
+  const payoutPerHit=totalHits>0?Math.floor(Math.floor(pot/totalHits)/1000)*1000:0;
+  const remainder=totalHits>0?pot-payoutPerHit*totalHits:pot;
+  const odds=unit>0&&payoutPerHit>0?(payoutPerHit/unit):0;
   const winners=state.votes.filter((v,i)=>hitCounts[i]>0);
   const labelArgs=state.betType==='wakuren'
     ?[horseWaku(resultFirst()),horseWaku(resultSecond())]
@@ -1352,7 +1376,8 @@ function renderResult(){
     <div class="total-line"><span>総額（プール）</span><span>${pot.toLocaleString()} pt</span></div>
     <div class="total-line"><span>的中者</span><span>${winners.length}人 / ${totalHits}点</span></div>
     <div class="total-line big"><span>1点あたり配当</span><span>${payoutPerHit.toLocaleString()} pt</span></div>
-    <div class="muted" style="text-align:right">（配当率 約${odds.toFixed(1)}倍）</div>
+    <div class="muted" style="text-align:right">（配当率 約${odds.toFixed(1)}倍・1000pt未満切捨て）</div>
+    <div class="total-line" style="color:var(--danger);font-weight:700"><span>次回繰越（プール）</span><span>${remainder.toLocaleString()} pt</span></div>
     <button class="btn btn-green btn-block" id="exportExcelBtn" style="margin-top:12px">📥 Excelで保存</button>
   </div>`;
   if(winners.length>0){
@@ -1371,7 +1396,7 @@ function renderResult(){
     });
     html+=`<div class="hint">配当 = 総額を的中点数で配分（的中点数 × 1点あたり配当）。括弧内はポイント代を差し引いた収支です。</div></div>`;
   }else{
-    html+=`<div class="card"><div class="empty">的中者はいませんでした 😢<br>総額 ${pot.toLocaleString()}pt はキャリーオーバー or 親の総取り。</div></div>`;
+    html+=`<div class="card"><div class="empty">的中者はいませんでした 😢<br>総額 ${pot.toLocaleString()}pt はすべて次回プールに繰越されます。</div></div>`;
   }
   html+=`<div class="card"><h2>📊 全員の収支</h2>`;
   const rows=state.votes.map((v,i)=>{
@@ -1384,19 +1409,28 @@ function renderResult(){
   });
   html+=`</div>`;
   $('resultArea').innerHTML=html;
-  lastExportPayload={resultLabel:resultLabelText,pot,totalBets,payoutPerHit,odds,rows};
+  lastExportPayload={resultLabel:resultLabelText,pot,totalBets,payoutPerHit,odds,remainder,rows};
   $('exportExcelBtn').addEventListener('click',exportToExcel);
 }
 function exportToExcel(){
   if(!lastExportPayload){toast('先に集計してください');return;}
-  const{resultLabel,pot,totalBets,payoutPerHit,odds,rows}=lastExportPayload;
+  if(!isExcelUnlocked()){
+    _pwMode='excel';
+    $('pwTitle').textContent='🔐 Excel出力';
+    $('pwOverlay').style.display='flex';
+    $('organizerPassword').value='';
+    setTimeout(()=>$('organizerPassword').focus(),50);
+    return;
+  }
+  const{resultLabel,pot,totalBets,payoutPerHit,odds,remainder,rows}=lastExportPayload;
   const raceName=state.raceName||'レース';
   const betLabel=BET_TYPE_LABELS[state.betType]||'馬連';
   const tableHtml=`<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif">
     <tr><th colspan="6" style="background:#0d3b66;color:#fff;font-size:14px">${escapeHtml(raceName)} 集計結果</th></tr>
     <tr><td>投票方式</td><td>${betLabel}</td><td>的中</td><td colspan="3">${escapeHtml(resultLabel)}</td></tr>
     <tr><td>参加人数</td><td>${state.votes.length}人</td><td>総投票点数</td><td>${totalBets}点</td><td>総額</td><td>${pot.toLocaleString()}pt</td></tr>
-    <tr><td>1点あたり配当</td><td>${payoutPerHit.toLocaleString()}pt</td><td>配当率</td><td colspan="3">約${odds.toFixed(1)}倍</td></tr>
+    <tr><td>1点あたり配当</td><td>${payoutPerHit.toLocaleString()}pt</td><td>配当率</td><td colspan="3">約${odds.toFixed(1)}倍（1000pt未満切捨て）</td></tr>
+    <tr><td style="color:red;font-weight:bold">次回繰越（プール）</td><td style="text-align:right;color:red;font-weight:bold" colspan="5">${remainder.toLocaleString()}pt</td></tr>
     <tr style="background:#0d3b66;color:#fff"><th>名前</th><th>点数</th><th>ポイント代</th><th>的中点数</th><th>配当</th><th>収支</th></tr>
     ${rows.map(r=>`<tr>
       <td>${escapeHtml(r.name)}</td><td style="text-align:right">${r.comboCount}</td>
