@@ -21,7 +21,9 @@ function norm(v) { return String(v == null ? "" : v).replace(/[\s　]/g, ""); }
 const wb = XLSX.readFile(src);
 const dst = XLSX.utils.book_new();
 const realNames = new Set();
+const realDeptNames = [];
 let seq = 0;
+let deptSeq = 0;
 
 wb.SheetNames.forEach(function (name) {
   const ws = wb.Sheets[name];
@@ -30,6 +32,11 @@ wb.SheetNames.forEach(function (name) {
     XLSX.utils.book_append_sheet(dst, XLSX.utils.aoa_to_sheet([[name + "(ダミー)"]]), name);
     return;
   }
+  deptSeq++;
+  realDeptNames.push(name);
+  realNames.add(name.trim()); // 部署タブ名(担当者の姓を含む場合がある)も漏洩チェック対象にする
+  const mm = /^([0-9０-９]+)([\s　]+)/.exec(name);
+  const newName = mm[1] + mm[2] + "試験部" + String(deptSeq).padStart(2, "0");
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
   const merges = ws["!merges"] || [];
   let headerIdx = rows.findIndex(function (r) { return norm(r[0]).indexOf("氏名") === 0; });
@@ -67,12 +74,12 @@ wb.SheetNames.forEach(function (name) {
   nws["!merges"] = merges
     .filter(function (mg) { return mg.s.c < KEEP_COLS; })
     .map(function (mg) { return { s: mg.s, e: { r: mg.e.r, c: Math.min(mg.e.c, KEEP_COLS - 1) } }; });
-  XLSX.utils.book_append_sheet(dst, nws, name);
+  XLSX.utils.book_append_sheet(dst, nws, newName);
 });
 
 XLSX.writeFile(dst, out);
 
-// 検査: 実名が生成物に残っていないこと
+// 検査: 実名・実部署タブ名が生成物に残っていないこと
 const check = XLSX.readFile(out);
 let leaked = 0;
 check.SheetNames.forEach(function (name) {
@@ -85,6 +92,11 @@ check.SheetNames.forEach(function (name) {
 });
 if (leaked) {
   console.error("実名が " + leaked + " 件残っています。生成物を削除してください");
+  process.exit(2);
+}
+const leakedSheetNames = check.SheetNames.filter(function (n) { return realDeptNames.indexOf(n) !== -1; });
+if (leakedSheetNames.length) {
+  console.error("部署タブ名が匿名化されていません: " + leakedSheetNames.length + " 件。生成物を削除してください");
   process.exit(2);
 }
 console.log("生成: " + out);
