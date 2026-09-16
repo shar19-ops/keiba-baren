@@ -149,6 +149,96 @@
     return result;
   }
 
+  // ---------- バイト列ユーティリティ ----------
+  var subtle = (typeof crypto !== "undefined" && crypto.subtle) ? crypto.subtle : null;
+  var textEncoder = new TextEncoder();
+  var textDecoder = new TextDecoder();
+
+  function bytesToB64(bytes) {
+    var s = "";
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s);
+  }
+  function b64ToBytes(b64) {
+    var s = atob(b64);
+    var out = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+    return out;
+  }
+  function bytesToHex(bytes) {
+    var s = "";
+    for (var i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, "0");
+    return s;
+  }
+
+  // ---------- 鍵・暗号化 ----------
+  var PBKDF2_ITER = 200000;
+  var CHECK_PLAIN = "uketsuke-ok";
+
+  function randomSaltB64() {
+    return bytesToB64(crypto.getRandomValues(new Uint8Array(16)));
+  }
+
+  async function deriveKey(passphrase, saltB64) {
+    var base = await subtle.importKey("raw", textEncoder.encode(String(passphrase)), "PBKDF2", false, ["deriveBits"]);
+    var bits = new Uint8Array(await subtle.deriveBits(
+      { name: "PBKDF2", hash: "SHA-256", salt: b64ToBytes(saltB64), iterations: PBKDF2_ITER }, base, 512));
+    var aes = await subtle.importKey("raw", bits.slice(0, 32), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+    var hmac = await subtle.importKey("raw", bits.slice(32, 64), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    return { aes: aes, hmac: hmac };
+  }
+
+  async function encryptJson(key, value) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var ct = await subtle.encrypt({ name: "AES-GCM", iv: iv }, key.aes, textEncoder.encode(JSON.stringify(value)));
+    return bytesToB64(iv) + "." + bytesToB64(new Uint8Array(ct));
+  }
+
+  async function decryptJson(key, str) {
+    var parts = String(str).split(".");
+    if (parts.length !== 2) throw new Error("暗号文の形式が不正です");
+    var pt = await subtle.decrypt({ name: "AES-GCM", iv: b64ToBytes(parts[0]) }, key.aes, b64ToBytes(parts[1]));
+    return JSON.parse(textDecoder.decode(pt));
+  }
+
+  function makeCheck(key) {
+    return encryptJson(key, CHECK_PLAIN);
+  }
+
+  async function verifyKey(key, check) {
+    try {
+      return (await decryptJson(key, check)) === CHECK_PLAIN;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function personId(key, dept, name, n) {
+    var msg = textEncoder.encode(dept + "" + name + "" + n);
+    var sig = await subtle.sign("HMAC", key.hmac, msg);
+    return bytesToHex(new Uint8Array(sig)).slice(0, 16);
+  }
+
+  function sortPeople(people) {
+    return people.slice().sort(function (a, b) {
+      return (a.deptOrder - b.deptOrder) || (a.row - b.row);
+    });
+  }
+
+  async function assignIds(key, people) {
+    var seen = {};
+    var out = [];
+    var sorted = sortPeople(people);
+    for (var i = 0; i < sorted.length; i++) {
+      var p = sorted[i];
+      var k = p.dept + "" + p.name;
+      var n = seen[k] || 0;
+      seen[k] = n + 1;
+      out.push(Object.assign({}, p, { id: await personId(key, p.dept, p.name, n) }));
+    }
+    return out;
+  }
+
   return {
     toHalfWidthDigits: toHalfWidthDigits,
     parseSheetName: parseSheetName,
@@ -157,6 +247,15 @@
     formatPlan: formatPlan,
     colLetter: colLetter,
     findHeader: findHeader,
-    parseWorkbook: parseWorkbook
+    parseWorkbook: parseWorkbook,
+    randomSaltB64: randomSaltB64,
+    deriveKey: deriveKey,
+    encryptJson: encryptJson,
+    decryptJson: decryptJson,
+    makeCheck: makeCheck,
+    verifyKey: verifyKey,
+    personId: personId,
+    sortPeople: sortPeople,
+    assignIds: assignIds
   };
 });
