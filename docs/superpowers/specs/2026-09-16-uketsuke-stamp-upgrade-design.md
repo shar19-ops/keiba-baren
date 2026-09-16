@@ -84,7 +84,7 @@
 - 鍵導出: `PBKDF2-SHA256(パスフレーズ, salt, 200,000 回)` → 256 bit。`salt` は 16 byte 乱数で `event/current` に平文保存
 - 暗号化: AES-GCM、IV 12 byte 乱数。保存形式は `base64(iv) + "." + base64(ciphertext)`
 - パスフレーズ検証: `event/current.check` に `encrypt("uketsuke-ok")` を保存し、復号して一致すれば正しい
-- 参加者 ID: `HMAC-SHA256(鍵, dept + "" + name + "" + n)` の先頭 16 hex 文字。`n` は同一 dept 内で同姓同名が出た場合の 0 始まり連番(元の行順)
+- 参加者 ID: `HMAC-SHA256(鍵, dept + "\u001f" + name + "\u001f" + n)` の先頭 16 hex 文字。`n` は同一 dept 内で同姓同名が出た場合の 0 始まり連番(元の行順)
   - 同じパスフレーズ・同じ dept・同じ氏名なら再取込でも同じ ID
   - パスフレーズ変更は提供しない(印刷済み QR が無効になるため)。変えたい場合は「新しいイベントを開始」
 - QR の内容: `RS2:<ID>`(氏名は入れない)

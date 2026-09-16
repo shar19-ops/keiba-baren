@@ -967,7 +967,7 @@ Expected: `Core.randomSaltB64 is not a function` 等で 6 件 FAIL。
   }
 
   async function personId(key, dept, name, n) {
-    var msg = textEncoder.encode(dept + "" + name + "" + n);
+    var msg = textEncoder.encode(dept + "\u001f" + name + "\u001f" + n);
     var sig = await subtle.sign("HMAC", key.hmac, msg);
     return bytesToHex(new Uint8Array(sig)).slice(0, 16);
   }
@@ -984,7 +984,7 @@ Expected: `Core.randomSaltB64 is not a function` 等で 6 件 FAIL。
     var sorted = sortPeople(people);
     for (var i = 0; i < sorted.length; i++) {
       var p = sorted[i];
-      var k = p.dept + "" + p.name;
+      var k = p.dept + "\u001f" + p.name;
       var n = seen[k] || 0;
       seen[k] = n + 1;
       out.push(Object.assign({}, p, { id: await personId(key, p.dept, p.name, n) }));
