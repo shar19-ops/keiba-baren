@@ -192,14 +192,17 @@ window.App = (function () {
   }
 
   // ---------- タブ ----------
+  var TAB_NAMES = ["kanji", "uketsuke", "status"];
   function selectTab(name) {
-    if (!tabs[name]) name = "uketsuke";
-    if (currentTab && currentTab !== name && tabs[currentTab].hide) tabs[currentTab].hide();
+    if (TAB_NAMES.indexOf(name) < 0) name = "uketsuke";
+    var leaving = currentTab && currentTab !== name ? tabs[currentTab] : null;
+    if (leaving && leaving.hide) leaving.hide();
     currentTab = name;
     document.querySelectorAll(".tab-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.tab === name); });
     document.querySelectorAll(".panel").forEach(function (p) { p.classList.toggle("active", p.id === "panel-" + name); });
     storageSet(KEYS.tab, name);
-    if (tabs[name].show) tabs[name].show();
+    var entering = tabs[name];
+    if (entering && entering.show) entering.show();
   }
 
   function renderHead() {

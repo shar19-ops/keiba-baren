@@ -16,7 +16,11 @@
     (function runNext(i) {
       if (i >= scripts.length) return;
       var s = document.createElement("script");
-      if (scripts[i].src) { s.src = scripts[i].src; s.onload = function () { runNext(i + 1); }; }
+      if (scripts[i].src) {
+        s.src = scripts[i].src;
+        s.onload = function () { runNext(i + 1); };
+        s.onerror = function () { console.warn("dev.html: 読み込み失敗 " + scripts[i].src); runNext(i + 1); };
+      }
       else { s.textContent = scripts[i].text; }
       document.body.appendChild(s);
       if (!scripts[i].src) runNext(i + 1);
