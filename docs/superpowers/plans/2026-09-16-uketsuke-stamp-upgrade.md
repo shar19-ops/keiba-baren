@@ -36,7 +36,7 @@
 |---|---|
 | `uketsuke-stamp/package.json` | devDependency `xlsx`、`npm test` / `npm run make-fixture` |
 | `uketsuke-stamp/tests/fixtures/make-fixture.js` | 実ファイルから氏名をダミー化したテスト用 Excel を生成(1 回だけ実行) |
-| `uketsuke-stamp/tests/fixtures/sample-出欠表.xlsx` | 生成物。30 部署シート、全角番号、小見出し行、小計行、注意書き行を含む |
+| `uketsuke-stamp/tests/fixtures/sample-出欠表.xlsx` | 生成物。30 部署シート(シート名も `02 試験部02` のように匿名化)、全角番号、小見出し行、小計行、注意書き行を含む |
 | `uketsuke-stamp/tests/helpers.js` | fixture 読込、合成シート作成、偽 DB |
 | `uketsuke-stamp/core.js` | 純粋関数(Excel 解析、ID、暗号化、集計、CSV / Excel データ、書式) |
 | `uketsuke-stamp/sync.js` | `SyncStore`(共有DB 購読、端末内キュー、再送) |
@@ -188,6 +188,8 @@ module.exports = { XLSX, FIXTURE, loadFixture, makeSheet, makeWorkbook, m, deptS
 
 - [ ] **Step 3: fixture 生成スクリプト**
 
+> 実装時の追加(2026-09-17): 部署シート名に部長の姓を含むものがあるため、生成物では部署シート名も `<元の番号トークン> 試験部NN`(NN は部署シートの連番 2 桁。例: `02 試験部02`、`３０ 試験部30`)に置き換える。元のシート名も漏えい検査の対象に含める。
+
 `uketsuke-stamp/tests/fixtures/make-fixture.js`:
 
 ```js
@@ -317,12 +319,12 @@ test("fixture: 部署シートが 30 枚あり、対象外シートも残って�
   assert.equal(dept.length, 30);
   assert.ok(wb.SheetNames.includes("原本"));
   assert.ok(wb.SheetNames.includes("出欠合計表"));
-  assert.ok(wb.SheetNames.includes("３０ 大阪支店他"));
+  assert.ok(wb.SheetNames.includes("３０ 試験部30"));
 });
 
 test("fixture: 見出し行が 4 行目にあり、実名の代わりにダミー名が入っている", () => {
   const wb = loadFixture();
-  const ws = wb.Sheets["02 総務部"];
+  const ws = wb.Sheets["02 試験部02"];
   assert.equal(String(ws.A4.v).replace(/[\s\u3000]/g, ""), "氏名");
   assert.equal(String(ws.G4.v).replace(/[\s\u3000]/g, ""), "役職");
   assert.equal(String(ws.K4.v).replace(/[\s\u3000]/g, ""), "出欠席予定");
@@ -579,14 +581,14 @@ test("parseWorkbook: fixture から 30 シート 308 名を読み、警告は無
 
 test("parseWorkbook: sheetMeta に見出し行・列・名簿行範囲が入る", () => {
   const r = Core.parseWorkbook(loadFixture(), XLSX);
-  const s = r.sheets.find((x) => x.sheetName === "02 総務部");
+  const s = r.sheets.find((x) => x.sheetName === "02 試験部02");
   assert.deepEqual(
     { sheetName: s.sheetName, deptOrder: s.deptOrder, dept: s.dept, headerRow: s.headerRow, nameCol: s.nameCol, titleCol: s.titleCol, planCol: s.planCol, dayCol: s.dayCol, firstRow: s.firstRow },
-    { sheetName: "02 総務部", deptOrder: 2, dept: "総務部", headerRow: 4, nameCol: "A", titleCol: "G", planCol: "K", dayCol: "N", firstRow: 6 }
+    { sheetName: "02 試験部02", deptOrder: 2, dept: "試験部02", headerRow: 4, nameCol: "A", titleCol: "G", planCol: "K", dayCol: "N", firstRow: 6 }
   );
   assert.ok(s.lastRow >= 6 && s.lastRow <= 27, "lastRow=" + s.lastRow); // 末尾の「計」行(28)は含まない
   assert.ok(s.lastRow >= s.firstRow);
-  const osaka = r.sheets.find((x) => x.sheetName === "３０ 大阪支店他");
+  const osaka = r.sheets.find((x) => x.sheetName === "３０ 試験部30");
   assert.equal(osaka.deptOrder, 30);
   // 5 行目は全幅結合の小見出しなので名簿は 6 行目から
   assert.equal(osaka.firstRow, 6);
@@ -594,9 +596,9 @@ test("parseWorkbook: sheetMeta に見出し行・列・名簿行範囲が入る"
 
 test("parseWorkbook: person は元の行番号・部署順・氏名・役職・予定を持つ", () => {
   const r = Core.parseWorkbook(loadFixture(), XLSX);
-  const p = r.people.find((x) => x.sheetName === "02 総務部" && x.row === 6);
+  const p = r.people.find((x) => x.sheetName === "02 試験部02" && x.row === 6);
   assert.equal(p.deptOrder, 2);
-  assert.equal(p.dept, "総務部");
+  assert.equal(p.dept, "試験部02");
   assert.match(p.name, /^試験　\d{3}$/);
   assert.ok(["yes", "no", "unknown"].includes(p.plan));
   assert.equal(typeof p.title, "string");
