@@ -1,0 +1,13 @@
+{
+  "name": "uketsuke-stamp",
+  "version": "2.0.0",
+  "private": true,
+  "description": "社内イベント出欠管理「受付スタンプ」",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "make-fixture": "node tests/fixtures/make-fixture.js"
+  },
+  "devDependencies": {
+    "xlsx": "0.18.5"
+  }
+}
