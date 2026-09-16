@@ -23,6 +23,8 @@ window.App = (function () {
   var listeners = [];
   var tabs = {};
   var currentTab = null;
+  var keyGen = 0;   // 鍵が変わる(取得・忘却)たびに +1。古い非同期処理の結果を捨てる目印
+  var applySeq = 0; // applyKey の呼び出し順。古い呼び出しの結果を捨てる
 
   // ---------- 端末内保存 ----------
   function storageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -78,44 +80,53 @@ window.App = (function () {
   }
 
   async function decryptWalkins() {
-    if (!state.key || !state.store) return;
+    var gen = keyGen;
+    var key = state.key;
+    if (!key || !state.store) return;
     var list = state.store.all();
     for (var i = 0; i < list.length; i++) {
       var r = list[i];
       if (r.kind !== "walkin" || !r.enc || state.walkinNames[r.pid]) continue;
-      try {
-        state.walkinNames[r.pid] = await Core.decryptJson(state.key, r.enc);
-      } catch (e) {
-        state.walkinNames[r.pid] = { name: "(復号できません)", dept: "" };
-      }
+      var names;
+      try { names = await Core.decryptJson(key, r.enc); } catch (e) { names = { name: "(復号できません)", dept: "" }; }
+      if (gen !== keyGen) return; // 復号中に鍵が変わった / 忘れた: 結果を捨てる
+      state.walkinNames[r.pid] = names;
     }
   }
 
   // ---------- 鍵と名簿 ----------
   async function loadRoster() {
-    if (!state.key || !state.rosterDoc || !state.rosterDoc.blob) { state.roster = null; return; }
-    try {
-      state.roster = await Core.decryptJson(state.key, state.rosterDoc.blob);
-    } catch (e) {
-      state.roster = null;
-    }
+    var gen = keyGen;
+    var key = state.key, doc = state.rosterDoc;
+    if (!key || !doc || !doc.blob) { state.roster = null; return; }
+    var roster = null;
+    try { roster = await Core.decryptJson(key, doc.blob); } catch (e) { roster = null; }
+    if (gen !== keyGen) return; // 復号中に鍵が変わった / 忘れた: 結果を捨てる
+    state.roster = roster;
   }
 
   // パスフレーズを検証して鍵を持つ。成功で true
   async function applyKey(passphrase) {
-    if (!state.event || !state.event.salt) return false;
+    var ev = state.event;
+    if (!ev || !ev.salt) return false;
+    var seq = ++applySeq;
     state.keyStatus = "checking";
     emit();
-    var key = await Core.deriveKey(passphrase, state.event.salt);
-    var ok = await Core.verifyKey(key, state.event.check);
-    if (!ok) {
-      state.keyStatus = "bad";
+    var key = await Core.deriveKey(passphrase, ev.salt);
+    var ok = await Core.verifyKey(key, ev.check);
+    if (seq !== applySeq) return false; // 後から別の applyKey が始まった: そちらに任せる
+    if (!state.event || state.event.salt !== ev.salt) {
+      // 検証中にイベントが変わった: 結果を捨て、新しいイベントに対してやり直す
+      state.keyStatus = "none";
       emit();
+      syncKeyWithEvent().then(emit);
       return false;
     }
+    if (!ok) { state.keyStatus = "bad"; emit(); return false; }
     state.key = key;
-    state.keySalt = state.event.salt;
+    state.keySalt = ev.salt;
     state.keyStatus = "ok";
+    keyGen++;
     storageSet(KEYS.pass, passphrase);
     await loadRoster();
     await decryptWalkins();
@@ -128,10 +139,12 @@ window.App = (function () {
     state.key = key;
     state.keySalt = salt;
     state.keyStatus = "ok";
+    keyGen++;
     storageSet(KEYS.pass, passphrase);
   }
 
   function forgetKey() {
+    keyGen++;
     state.key = null;
     state.keySalt = null;
     state.keyStatus = "none";
@@ -148,14 +161,16 @@ window.App = (function () {
       return;
     }
     if (state.key && state.keySalt === state.event.salt) return;
+    if (state.keyStatus === "checking") return; // 進行中の applyKey が結果を判定する
     state.key = null;
     state.keySalt = null;
     state.roster = null;
     state.keyStatus = "none";
+    keyGen++;
     var saved = storageGet(KEYS.pass);
     if (saved) {
       var ok = await applyKey(saved);
-      if (!ok) storageRemove(KEYS.pass);
+      if (!ok && state.keyStatus === "bad") storageRemove(KEYS.pass);
     }
   }
 
