@@ -149,3 +149,44 @@ test("購読エラーは error に入り onChange が呼ばれる", async () => 
   assert.ok(notified >= 2);
   store.stop();
 });
+
+test("書込中に同じ ID への取消が来ても失われない", async () => {
+  const db = new FakeDb();
+  const { store } = makeStore(db);
+  store.start();
+  await tick();
+  const p1 = store.checkIn("p1", { t: "a", dev: "受付1", kind: "qr" }); // await しない
+  const p2 = store.cancel("p1");                                          // 書込中に取消
+  await Promise.all([p1, p2]);
+  await tick();
+  assert.equal(store.pendingCount, 0);
+  assert.equal(db.data.has("p1"), false);
+  assert.equal(store.get("p1"), null);
+  store.stop();
+});
+
+test("購読が復帰したら error が消える", async () => {
+  const db = new FakeDb();
+  const { store } = makeStore(db);
+  store.start();
+  await tick();
+  Array.from(db.listeners)[0].error({ code: "revoked", message: "gone" });
+  assert.equal(store.error.code, "revoked");
+  store.stop();
+  store.start();
+  await tick();
+  assert.equal(store.error, null);
+  store.stop();
+});
+
+test("flush 中の checkIn を await すると、その書込が終わってから解決する", async () => {
+  const db = new FakeDb();
+  const { store } = makeStore(db);
+  store.start();
+  await tick();
+  store.checkIn("a", { t: "a", dev: "受付1", kind: "qr" }); // await しない
+  await store.checkIn("b", { t: "b", dev: "受付1", kind: "qr" });
+  assert.equal(db.data.has("b"), true);
+  assert.equal(store.pendingCount, 0);
+  store.stop();
+});

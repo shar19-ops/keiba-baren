@@ -22,6 +22,7 @@
     this.flushing = false;
     this.ready = false;
     this.error = null;
+    this.flushPromise = null;
   }
 
   Object.defineProperty(SyncStore.prototype, "pendingCount", {
@@ -35,6 +36,7 @@
       snap.docs.forEach(function (d) { next[d.id] = Object.assign({ pid: d.id }, d.data()); });
       self.records = next;
       self.ready = true;
+      self.error = null;
       self._emit();
     }, function (err) {
       self.error = err;
@@ -98,8 +100,14 @@
     this._emit();
   };
 
-  SyncStore.prototype.flush = async function () {
-    if (this.flushing) return;
+  SyncStore.prototype.flush = function () {
+    if (this.flushing) return this.flushPromise;
+    var self = this;
+    this.flushPromise = this._flushLoop().then(function () { self.flushPromise = null; });
+    return this.flushPromise;
+  };
+
+  SyncStore.prototype._flushLoop = async function () {
     this.flushing = true;
     if (this.timer) { this.clearTimer(this.timer); this.timer = null; }
     var self = this;
@@ -114,7 +122,7 @@
           this._emit();
           return;
         }
-        this.pending.shift();
+        this.pending = this.pending.filter(function (p) { return p !== op; });
         this._savePending();
         this._emit();
       }
