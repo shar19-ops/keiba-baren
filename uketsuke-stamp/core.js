@@ -174,7 +174,7 @@
   // ---------- 鍵・暗号化 ----------
   var PBKDF2_ITER = 200000;
   var CHECK_PLAIN = "uketsuke-ok";
-  var ID_SEP = "";
+  var ID_SEP = String.fromCharCode(0x1f); // U+001F unit separator (kept visible; editors strip the raw byte)
 
   function randomSaltB64() {
     return bytesToB64(crypto.getRandomValues(new Uint8Array(16)));
