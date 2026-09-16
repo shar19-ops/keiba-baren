@@ -240,7 +240,75 @@
   </div>
 
   <!-- ===== 受付タブ(Task 10 で中身を追加) ===== -->
-  <div class="panel" id="panel-uketsuke"></div>
+  <div class="panel" id="panel-uketsuke">
+    <section class="card gate" id="gateCard">
+      <p id="gateMsg">読み込み中…</p>
+      <div id="gateForm" hidden>
+        <div class="field-row">
+          <input type="password" id="gatePass" placeholder="パスフレーズ" autocomplete="current-password">
+          <button class="btn primary small" id="gateBtn">入力</button>
+        </div>
+        <p class="status-line bad" id="gateErr" hidden>パスフレーズが違います</p>
+      </div>
+    </section>
+
+    <div id="uketsukeMain" hidden>
+      <section class="card">
+        <div class="counter-strip">
+          <div>
+            <span class="count-num" id="cntChecked">0</span>
+            <span class="count-label"> 名受付 / 予定〇 <span id="cntPlan">0</span> 名</span>
+          </div>
+          <span class="badge" id="pendingBadge" hidden>未送信 0 件</span>
+        </div>
+        <label class="field">端末名(集計時の区別用)<input type="text" id="deviceLabel" placeholder="例: 受付1"></label>
+
+        <div class="scan-frame" id="scanFrame">
+          <video id="video" playsinline muted></video>
+          <div class="corners corner-tl"></div>
+          <div class="corners corner-br"></div>
+          <div class="idle-msg" id="idleMsg">「スキャン開始」を押してカメラを起動してください</div>
+          <div class="stamp-flash" id="stampFlash">
+            <div class="ring">
+              <div class="kanji" id="stampKanji">受付</div>
+              <div class="who" id="stampWho"></div>
+            </div>
+          </div>
+        </div>
+        <canvas id="canvas" hidden></canvas>
+        <div class="btn-row">
+          <button class="btn primary" id="scanToggleBtn">スキャン開始</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>名簿から受付</h2>
+        <p class="card-desc">QRが読めない・持っていない人はここで検索してタップしてください。</p>
+        <input type="search" id="searchInput" placeholder="氏名の一部 または 部署名">
+        <ul class="people-list" id="searchResults"></ul>
+        <p class="hint" id="searchHint"></p>
+      </section>
+
+      <section class="card">
+        <h2>飛び入り(名簿にない人)</h2>
+        <div class="field-row">
+          <input type="text" id="walkinName" placeholder="氏名">
+          <input type="text" id="walkinDept" placeholder="所属(任意)">
+          <button class="btn small" id="walkinAddBtn">追加</button>
+        </div>
+        <p class="hint">氏名・所属は暗号化して保存されます。</p>
+      </section>
+
+      <section class="card">
+        <h2>この端末の受付履歴</h2>
+        <ul class="checkin-list" id="myHistory"></ul>
+        <div class="empty-note" id="myHistoryEmpty">まだ受付記録がありません。</div>
+        <div class="btn-row">
+          <button class="btn ghost small" id="forgetKeyBtn">この端末からパスフレーズを忘れる</button>
+        </div>
+      </section>
+    </div>
+  </div>
 
   <!-- ===== 状況タブ(Task 11 で中身を追加) ===== -->
   <div class="panel" id="panel-status"></div>
