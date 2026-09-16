@@ -64,6 +64,91 @@
     return null;
   }
 
+  // ---------- ブック全体 ----------
+  function cellText(v) {
+    return String(v == null ? "" : v).trim();
+  }
+
+  var SUBTOTAL_RE = /^(計|小計|合計|総計|人数|出席者数|欠席者数)$/;
+
+  function mergeAt(merges, r, c) {
+    for (var i = 0; i < merges.length; i++) {
+      var mg = merges[i];
+      if (mg.s.r <= r && r <= mg.e.r && mg.s.c <= c && c <= mg.e.c) return mg;
+    }
+    return null;
+  }
+
+  function parseWorkbook(wb, XLSX) {
+    var result = { event: { title: "", dateText: "", venue: "" }, sheets: [], people: [], warnings: [] };
+    var eventTaken = false;
+    wb.SheetNames.forEach(function (sheetName) {
+      var parsed = parseSheetName(sheetName);
+      if (!parsed) return;
+      var ws = wb.Sheets[sheetName];
+      var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
+      var header = findHeader(rows);
+      if (!header) {
+        result.warnings.push("シート「" + sheetName + "」: 見出し行(氏名・役職・出欠席予定)が見つからないため読み飛ばしました");
+        return;
+      }
+      if (!eventTaken) {
+        eventTaken = true;
+        var above = [];
+        for (var a = 0; a < header.headerRow; a++) above.push(cellText((rows[a] || [])[0]));
+        result.event.title = above[0] || "";
+        result.event.dateText = above[1] || "";
+        result.event.venue = above[2] || "";
+      }
+      var merges = ws["!merges"] || [];
+      var otherCols = [header.titleCol, header.planCol];
+      var firstRow = null, lastRow = null;
+      for (var r = header.headerRow + 1; r < rows.length; r++) {
+        var row = rows[r] || [];
+        var raw = row[header.nameCol];
+        if (raw === "" || raw === undefined || raw === null) continue;
+        var mg = mergeAt(merges, r, header.nameCol);
+        if (mg && otherCols.some(function (c) { return mg.s.c <= c && c <= mg.e.c; })) continue; // 全幅結合: 小見出し / 注意書き
+        if (typeof raw !== "string") {
+          result.warnings.push("シート「" + sheetName + "」" + (r + 1) + " 行: 氏名が文字列でないため読み飛ばしました");
+          continue;
+        }
+        var name = raw.trim();
+        if (!name) continue;
+        if (SUBTOTAL_RE.test(normalizeLabel(name))) continue; // 「計（ n 名）」などの小計行
+        if (name.length > 20) {
+          result.warnings.push("シート「" + sheetName + "」" + (r + 1) + " 行: 氏名が長すぎるため読み飛ばしました");
+          continue;
+        }
+        result.people.push({
+          deptOrder: parsed.deptOrder,
+          dept: parsed.dept,
+          sheetName: sheetName,
+          row: r + 1,
+          name: name,
+          title: cellText(row[header.titleCol]),
+          plan: normalizePlan(row[header.planCol])
+        });
+        if (firstRow === null) firstRow = r + 1;
+        lastRow = r + 1;
+      }
+      result.sheets.push({
+        sheetName: sheetName,
+        deptOrder: parsed.deptOrder,
+        dept: parsed.dept,
+        headerRow: header.headerRow + 1,
+        nameCol: colLetter(header.nameCol),
+        titleCol: colLetter(header.titleCol),
+        planCol: colLetter(header.planCol),
+        dayCol: header.dayCol === null ? null : colLetter(header.dayCol),
+        firstRow: firstRow,
+        lastRow: lastRow
+      });
+    });
+    if (!result.sheets.length) throw new Error("部署シート(番号+部署名)が見つかりません");
+    return result;
+  }
+
   return {
     toHalfWidthDigits: toHalfWidthDigits,
     parseSheetName: parseSheetName,
@@ -71,6 +156,7 @@
     normalizePlan: normalizePlan,
     formatPlan: formatPlan,
     colLetter: colLetter,
-    findHeader: findHeader
+    findHeader: findHeader,
+    parseWorkbook: parseWorkbook
   };
 });
