@@ -174,6 +174,7 @@
   // ---------- 鍵・暗号化 ----------
   var PBKDF2_ITER = 200000;
   var CHECK_PLAIN = "uketsuke-ok";
+  var ID_SEP = "";
 
   function randomSaltB64() {
     return bytesToB64(crypto.getRandomValues(new Uint8Array(16)));
@@ -214,7 +215,7 @@
   }
 
   async function personId(key, dept, name, n) {
-    var msg = textEncoder.encode(dept + "" + name + "" + n);
+    var msg = textEncoder.encode(dept + ID_SEP + name + ID_SEP + n);
     var sig = await subtle.sign("HMAC", key.hmac, msg);
     return bytesToHex(new Uint8Array(sig)).slice(0, 16);
   }
@@ -231,7 +232,7 @@
     var sorted = sortPeople(people);
     for (var i = 0; i < sorted.length; i++) {
       var p = sorted[i];
-      var k = p.dept + "" + p.name;
+      var k = p.dept + ID_SEP + p.name;
       var n = seen[k] || 0;
       seen[k] = n + 1;
       out.push(Object.assign({}, p, { id: await personId(key, p.dept, p.name, n) }));

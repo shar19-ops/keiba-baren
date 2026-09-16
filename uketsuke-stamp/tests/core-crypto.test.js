@@ -45,6 +45,11 @@ test("personId: 同じ入力なら同じ ID、鍵・部署・氏名・連番の�
   assert.notEqual(await Core.personId(k1, "総務部", "山田　太郎", 1), id);
 });
 
+test("personId: 区切り文字があるので部署と氏名の境界が違えば別 ID", async () => {
+  const key = await Core.deriveKey("A", Core.randomSaltB64());
+  assert.notEqual(await Core.personId(key, "甲部山", "田太郎", 0), await Core.personId(key, "甲部", "山田太郎", 0));
+});
+
 test("sortPeople: 部署順→行順に並ぶ", () => {
   const people = [
     { deptOrder: 2, row: 6, name: "b" },
