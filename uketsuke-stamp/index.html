@@ -170,7 +170,74 @@
 
 <main>
   <!-- ===== 幹事タブ(Task 9 で中身を追加) ===== -->
-  <div class="panel" id="panel-kanji"></div>
+  <div class="panel" id="panel-kanji">
+    <section class="card">
+      <h2>1. イベント設定</h2>
+      <p class="card-desc">Excel を取り込むと自動で入ります。必要なら書き換えてから保存してください。</p>
+      <label class="field">イベント名<input type="text" id="evTitle"></label>
+      <label class="field">日時<input type="text" id="evDate"></label>
+      <label class="field">会場<input type="text" id="evVenue"></label>
+      <div id="passSetup">
+        <label class="field">パスフレーズ(4文字以上。受付端末で入力します)<input type="password" id="passNew" autocomplete="new-password"></label>
+        <label class="field">パスフレーズ(確認)<input type="password" id="passNew2" autocomplete="new-password"></label>
+        <p class="hint">名簿はこのパスフレーズで暗号化して共有DBに保存します。後から変更はできません(変えると印刷済みQRが無効になるため)。変えたい場合は「新しいイベントを開始」してください。</p>
+      </div>
+      <p class="status-line" id="passStatus" hidden>パスフレーズ: 設定済み</p>
+      <div id="kanjiUnlock" hidden>
+        <p class="note">この端末にはパスフレーズが保存されていません。名簿の再取込・QR発行・書き出しにはパスフレーズが必要です。</p>
+        <div class="field-row">
+          <input type="password" id="kanjiPass" placeholder="パスフレーズ" autocomplete="current-password">
+          <button class="btn small" id="kanjiUnlockBtn">確認</button>
+        </div>
+        <p class="status-line bad" id="kanjiUnlockMsg" hidden></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 名簿を取り込む</h2>
+      <p class="card-desc">部署ごとにシートが分かれた出欠表(.xlsx / .xlsm)を選んでください。ファイルの中身はこの端末内で解析され、氏名は暗号化してから共有DBに保存されます。</p>
+      <input type="file" id="xlsxFile" accept=".xlsx,.xlsm,.xls">
+      <div id="importPreview" hidden>
+        <div class="table-wrap"><table class="simple" id="previewTable"></table></div>
+        <ul class="warnings" id="previewWarnings"></ul>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" id="saveRosterBtn" disabled>名簿を共有DBに保存</button>
+      </div>
+      <p class="hint" id="rosterInfo">共有DBの名簿: 未登録</p>
+    </section>
+
+    <section class="card qr-card">
+      <h2>3. QRコードを発行</h2>
+      <p class="card-desc">QRには参加者IDだけを埋め込みます(氏名は入りません)。切り取って名札などに添付してください。</p>
+      <div class="radio-row">
+        <label><input type="radio" name="qrTarget" value="yes" checked> 予定〇の人のみ</label>
+        <label><input type="radio" name="qrTarget" value="all"> 全員</label>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" id="genQrBtn">QRを生成</button>
+        <button class="btn" id="printBtn" hidden>印刷する</button>
+      </div>
+      <div class="qr-grid" id="qrGrid"></div>
+    </section>
+
+    <section class="card">
+      <h2>4. 書き出し</h2>
+      <p class="card-desc">全端末分の受付記録をまとめて書き出します。Excel は元の出欠表と同じシート構成で、「当日出欠席」列をそのまま貼り付けられます。</p>
+      <div class="btn-row">
+        <button class="btn" id="exportCsvBtn">CSV(受付一覧)</button>
+        <button class="btn" id="exportXlsxBtn">Excel(当日出欠)</button>
+      </div>
+    </section>
+
+    <section class="card danger">
+      <h2>新しいイベントを開始</h2>
+      <p class="card-desc">イベント設定・名簿・全端末の受付記録を共有DBから削除します。先に書き出しを済ませてください。</p>
+      <div class="btn-row">
+        <button class="btn ghost" id="resetBtn">すべて削除して新しいイベントを開始</button>
+      </div>
+    </section>
+  </div>
 
   <!-- ===== 受付タブ(Task 10 で中身を追加) ===== -->
   <div class="panel" id="panel-uketsuke"></div>
