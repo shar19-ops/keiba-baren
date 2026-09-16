@@ -219,10 +219,10 @@ uketsuke-stamp/
 ```
 
 - `core.js` / `sync.js` はブラウザでは `window` に、Node では `module.exports` に公開する二重対応
-- 外部ライブラリ(すべて cdnjs、バージョン固定)
+- 外部ライブラリ(cdnjs / jsdelivr、バージョン固定)
   - `xlsx` 0.18.5(`xlsx.full.min.js`)— Excel 読み書き
   - `qrcodejs` 1.0.0 — QR 生成
-  - `jsQR` 1.4.0 — QR 読み取り
+  - `jsQR` 1.4.0(`https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js`。cdnjs に無いため jsdelivr)— QR 読み取り
 - Artifact は `index.html` + `core.js` + `sync.js` + `app.js` の複数ファイル公開。URL は現行のものを維持(`url` 指定で更新)
 
 ## 10. エラー処理

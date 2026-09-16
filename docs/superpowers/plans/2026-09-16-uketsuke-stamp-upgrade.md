@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - ソースは `uketsuke-stamp/` 配下。Artifact 本体は `index.html`、補助ファイルは `core.js` / `sync.js` / `app.js` / `tab-kanji.js` / `tab-uketsuke.js` / `tab-status.js`
-- 外部スクリプトは cdnjs のみ、バージョン固定: `https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js`、`https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js`、`https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js`
+- 外部スクリプトは cdnjs / jsdelivr(npm)のみ、バージョン固定(jsQR は cdnjs に無いため jsdelivr): `https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js`、`https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js`、`https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js`
 - `core.js` と `sync.js` はブラウザ(`window.UketsukeCore` / `window.UketsukeSync`)と Node(`module.exports`)の両対応。DOM・`window.claude` に依存しない
 - 共有DBの宣言: `capabilities: { db: { rules: [ { path: "", read: "interact", write: "admin" }, { path: "checkins", read: "interact", write: "interact" } ] }, downloads: true }`
 - 共有DBに平文で載せてよいのは: 参加者ID、受付時刻、端末名、種別、イベント名/日時/会場、salt、check、version 系のみ。氏名・部署・役職は必ず `encryptJson` を通す
@@ -1990,7 +1990,7 @@ Artifact は公開時に `<!doctype html><html><head>…</head><body>` で包ま
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
   :root {
     --bg: #F6F5F1; --surface: #FFFFFF; --ink: #202A3B; --ink-soft: #626B7C; --ink-faint: #9298A6;
