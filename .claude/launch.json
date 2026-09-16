@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "uketsuke-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve@14", "-l", "8765", "uketsuke-stamp"],
+      "port": 8765
+    }
+  ]
+}

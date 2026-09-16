@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="../">
+<script src="tests/dev-shim.js"></script>
+<script>
+  // index.html を読み込んで body に流し込む(script は順に実行し直す)
+  fetch("index.html").then(function (r) { return r.text(); }).then(function (html) {
+    var doc = new DOMParser().parseFromString(html, "text/html");
+    Array.prototype.slice.call(doc.head.childNodes).forEach(function (n) { if (n.tagName !== "SCRIPT") document.head.appendChild(document.importNode(n, true)); });
+    var scripts = [];
+    Array.prototype.slice.call(doc.querySelectorAll("script")).forEach(function (s) { scripts.push({ src: s.getAttribute("src"), text: s.textContent }); s.remove(); });
+    Array.prototype.slice.call(doc.body.childNodes).forEach(function (n) { document.body.appendChild(document.importNode(n, true)); });
+    (function runNext(i) {
+      if (i >= scripts.length) return;
+      var s = document.createElement("script");
+      if (scripts[i].src) { s.src = scripts[i].src; s.onload = function () { runNext(i + 1); }; }
+      else { s.textContent = scripts[i].text; }
+      document.body.appendChild(s);
+      if (!scripts[i].src) runNext(i + 1);
+    })(0);
+  });
+</script>
+</head>
+<body></body>
+</html>
