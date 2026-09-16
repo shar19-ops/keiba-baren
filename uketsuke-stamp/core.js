@@ -347,6 +347,78 @@
     return d ? d.getFullYear() + "/" + pad2(d.getMonth() + 1) + "/" + pad2(d.getDate()) + " " + formatTime(iso) : "";
   }
 
+  // ---------- 書き出し ----------
+  function csvEscape(v) {
+    return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  }
+
+  function buildCsv(roster, checkins) {
+    var header = ["氏名", "部署", "役職", "出欠席予定", "受付時刻", "受付端末", "種別", "判定"];
+    var lines = [header.map(csvEscape).join(",")];
+    buildRows(roster, checkins).forEach(function (r) {
+      lines.push([r.name, r.dept, r.title, formatPlan(r.plan), formatStamp(r.t), r.dev, KIND_LABEL[r.kind] || r.kind, r.judge].map(csvEscape).join(","));
+    });
+    return "﻿" + lines.join("\r\n") + "\r\n";
+  }
+
+  var EXPORT_HEADER = ["氏名", "役職", "出欠席予定", "当日出欠席", "受付時刻", "受付端末", "判定"];
+
+  function pasteHint(sheet) {
+    if (sheet.dayCol && sheet.firstRow && sheet.lastRow) {
+      return "→ 元ファイルの " + sheet.dayCol + sheet.firstRow + ":" + sheet.dayCol + sheet.lastRow + " に貼り付け";
+    }
+    return "→ 元ファイルの当日出欠席欄に貼り付け";
+  }
+
+  function buildExportSheets(roster, checkins, event) {
+    var checked = {};
+    (checkins || []).forEach(function (c) { checked[c.pid] = c; });
+    var sheets = (roster.sheets || []).slice().sort(function (a, b) { return a.deptOrder - b.deptOrder; });
+    var people = sortPeople(roster.people || []);
+    var out = [];
+
+    sheets.forEach(function (sheet) {
+      var rows = [];
+      var above = [event.title || "", event.dateText || "", event.venue || ""];
+      for (var r = 0; r < sheet.headerRow - 1; r++) rows.push(above[r] ? [above[r]] : []);
+      rows.push(EXPORT_HEADER.concat(["", pasteHint(sheet)]));
+      people.filter(function (p) { return p.sheetName === sheet.sheetName; }).forEach(function (p) {
+        while (rows.length < p.row - 1) rows.push([]);
+        var c = checked[p.id];
+        rows[p.row - 1] = [p.name, p.title, formatPlan(p.plan), c ? "〇" : "", c ? formatStamp(c.t) : "", c ? (c.dev || "") : "", judge(p.plan, !!c, true)];
+      });
+      out.push({ name: sheet.sheetName, rows: rows });
+    });
+
+    var summary = summarize(roster, checkins);
+    var unlisted = [["氏名", "所属", "受付時刻", "受付端末", "種別"]];
+    summary.unlisted.forEach(function (c) {
+      unlisted.push([c.name, c.dept, formatStamp(c.t), c.dev || "", KIND_LABEL[c.kind] || c.kind]);
+    });
+    out.push({ name: "名簿外", rows: unlisted });
+
+    var agg = [["部署", "予定〇", "受付済", "未受付", "予定外"]];
+    summary.byDept.forEach(function (d) { agg.push([d.dept, d.planYes, d.checked, d.missing, d.unexpected]); });
+    if (summary.unlisted.length) agg.push(["名簿外", "", summary.unlisted.length, "", summary.unlisted.length]);
+    agg.push(["合計", summary.total.planYes, summary.total.checked, summary.total.missing, summary.total.unexpected]);
+    out.push({ name: "集計", rows: agg });
+    return out;
+  }
+
+  function toWorkbook(XLSX, sheets) {
+    var wb = XLSX.utils.book_new();
+    sheets.forEach(function (s) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s.rows), s.name.slice(0, 31));
+    });
+    return wb;
+  }
+
+  function exportFilename(prefix, title, date, ext) {
+    var safe = String(title || "").replace(/[^\w぀-ヿ一-鿿０-ｚ]/g, "");
+    var stamp = date.getFullYear() + pad2(date.getMonth() + 1) + pad2(date.getDate()) + "_" + pad2(date.getHours()) + pad2(date.getMinutes());
+    return prefix + (safe ? "_" + safe : "") + "_" + stamp + "." + ext;
+  }
+
   return {
     toHalfWidthDigits: toHalfWidthDigits,
     parseSheetName: parseSheetName,
@@ -374,6 +446,10 @@
     walkinId: walkinId,
     formatClock: formatClock,
     formatTime: formatTime,
-    formatStamp: formatStamp
+    formatStamp: formatStamp,
+    buildCsv: buildCsv,
+    buildExportSheets: buildExportSheets,
+    toWorkbook: toWorkbook,
+    exportFilename: exportFilename
   };
 });
