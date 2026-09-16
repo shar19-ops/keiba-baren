@@ -240,6 +240,113 @@
     return out;
   }
 
+  // ---------- 判定・集計 ----------
+  var KIND_LABEL = { qr: "QR", manual: "名簿", walkin: "飛び入り" };
+
+  function judge(plan, checked, listed) {
+    if (!listed) return "名簿外";
+    if (plan === "yes") return checked ? "" : "未受付";
+    return checked ? "予定外出席" : "";
+  }
+
+  function indexById(people) {
+    var map = {};
+    (people || []).forEach(function (p) { map[p.id] = p; });
+    return map;
+  }
+
+  function unlistedName(c) {
+    return c.name || ("(名簿外 " + c.pid + ")");
+  }
+
+  function buildRows(roster, checkins) {
+    var byId = indexById(roster.people);
+    return (checkins || []).slice().sort(function (a, b) { return String(a.t).localeCompare(String(b.t)); }).map(function (c) {
+      var p = byId[c.pid];
+      if (p) {
+        return { pid: c.pid, name: p.name, dept: p.dept, title: p.title, plan: p.plan, t: c.t, dev: c.dev || "", kind: c.kind, judge: judge(p.plan, true, true), listed: true };
+      }
+      return { pid: c.pid, name: unlistedName(c), dept: c.dept || "", title: "", plan: "unknown", t: c.t, dev: c.dev || "", kind: c.kind, judge: "名簿外", listed: false };
+    });
+  }
+
+  function summarize(roster, checkins) {
+    var people = sortPeople(roster.people || []);
+    var checked = {};
+    (checkins || []).forEach(function (c) { checked[c.pid] = c; });
+    var known = {};
+    var total = { planYes: 0, checked: 0, missing: 0, unexpected: 0 };
+    var depts = [];
+    var deptIndex = {};
+    people.forEach(function (p) {
+      known[p.id] = true;
+      var d = deptIndex[p.sheetName];
+      if (!d) {
+        d = { deptOrder: p.deptOrder, dept: p.dept, sheetName: p.sheetName, planYes: 0, checked: 0, missing: 0, unexpected: 0, missingPeople: [] };
+        deptIndex[p.sheetName] = d;
+        depts.push(d);
+      }
+      var isChecked = !!checked[p.id];
+      var j = judge(p.plan, isChecked, true);
+      if (p.plan === "yes") { d.planYes++; total.planYes++; }
+      if (isChecked) { d.checked++; total.checked++; }
+      if (j === "未受付") { d.missing++; total.missing++; d.missingPeople.push(p); }
+      if (j === "予定外出席") { d.unexpected++; total.unexpected++; }
+    });
+    var unlisted = (checkins || []).filter(function (c) { return !known[c.pid]; })
+      .sort(function (a, b) { return String(a.t).localeCompare(String(b.t)); })
+      .map(function (c) { return Object.assign({}, c, { name: unlistedName(c), dept: c.dept || "" }); });
+    total.checked += unlisted.length;
+    total.unexpected += unlisted.length;
+    return { total: total, byDept: depts, unlisted: unlisted };
+  }
+
+  function searchPeople(people, query) {
+    var q = normalizeLabel(query);
+    var hits = (people || []).filter(function (p) {
+      if (!q) return true;
+      return normalizeLabel(p.name).indexOf(q) >= 0 || normalizeLabel(p.dept).indexOf(q) >= 0;
+    });
+    return sortPeople(hits);
+  }
+
+  function rosterDiff(oldPeople, newPeople) {
+    var before = indexById(oldPeople);
+    var after = indexById(newPeople);
+    var diff = { added: 0, removed: 0, changed: 0 };
+    Object.keys(after).forEach(function (id) {
+      if (!before[id]) { diff.added++; return; }
+      var a = before[id], b = after[id];
+      if (a.plan !== b.plan || a.title !== b.title || a.row !== b.row) diff.changed++;
+    });
+    Object.keys(before).forEach(function (id) { if (!after[id]) diff.removed++; });
+    return diff;
+  }
+
+  function walkinId() {
+    return "w-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  // ---------- 書式 ----------
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function toDate(iso) {
+    if (!iso) return null;
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function formatClock(iso) {
+    var d = toDate(iso);
+    return d ? pad2(d.getHours()) + ":" + pad2(d.getMinutes()) : "";
+  }
+  function formatTime(iso) {
+    var d = toDate(iso);
+    return d ? formatClock(iso) + ":" + pad2(d.getSeconds()) : "";
+  }
+  function formatStamp(iso) {
+    var d = toDate(iso);
+    return d ? d.getFullYear() + "/" + pad2(d.getMonth() + 1) + "/" + pad2(d.getDate()) + " " + formatTime(iso) : "";
+  }
+
   return {
     toHalfWidthDigits: toHalfWidthDigits,
     parseSheetName: parseSheetName,
@@ -257,6 +364,16 @@
     verifyKey: verifyKey,
     personId: personId,
     sortPeople: sortPeople,
-    assignIds: assignIds
+    assignIds: assignIds,
+    KIND_LABEL: KIND_LABEL,
+    judge: judge,
+    buildRows: buildRows,
+    summarize: summarize,
+    searchPeople: searchPeople,
+    rosterDiff: rosterDiff,
+    walkinId: walkinId,
+    formatClock: formatClock,
+    formatTime: formatTime,
+    formatStamp: formatStamp
   };
 });
