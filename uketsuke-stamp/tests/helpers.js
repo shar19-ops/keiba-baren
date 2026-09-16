@@ -58,4 +58,57 @@ function deptSheetAoa(people, opts) {
   return { aoa: aoa, colOf: colOf, headerIndex: 3 + (opts.extraRows || 0) };
 }
 
-module.exports = { XLSX, FIXTURE, loadFixture, makeSheet, makeWorkbook, m, deptSheetAoa };
+// Artifact db の checkins コレクションだけを真似た偽 DB。
+// failNext を n にすると次の n 回の書込が code:"unavailable" で失敗する。
+class FakeDb {
+  constructor() {
+    this.data = new Map();
+    this.listeners = new Set();
+    this.failNext = 0;
+    this.writes = 0;
+  }
+  _maybeFail() {
+    if (this.failNext > 0) {
+      this.failNext--;
+      const e = new Error("unavailable");
+      e.code = "unavailable";
+      throw e;
+    }
+  }
+  _snap() {
+    const docs = Array.from(this.data.entries()).map(([id, d]) => ({ id, exists: true, data: () => d }));
+    return { docs, size: docs.length, empty: docs.length === 0, docChanges: () => [] };
+  }
+  _notify() {
+    this.listeners.forEach((l) => l.next(this._snap()));
+  }
+  collection(path) {
+    if (path !== "checkins") throw new Error("FakeDb は checkins だけ対応: " + path);
+    const self = this;
+    return {
+      doc(id) {
+        return {
+          id,
+          async set(data) { self._maybeFail(); self.writes++; self.data.set(id, JSON.parse(JSON.stringify(data))); self._notify(); },
+          async delete() { self._maybeFail(); self.writes++; self.data.delete(id); self._notify(); },
+        };
+      },
+      onSnapshot(next, error) {
+        const l = { next, error };
+        self.listeners.add(l);
+        Promise.resolve().then(() => { if (self.listeners.has(l)) next(self._snap()); });
+        return () => self.listeners.delete(l);
+      },
+      async get() { return self._snap(); },
+    };
+  }
+}
+
+class MemoryStorage {
+  constructor() { this.map = new Map(); }
+  getItem(k) { return this.map.has(k) ? this.map.get(k) : null; }
+  setItem(k, v) { this.map.set(k, String(v)); }
+  removeItem(k) { this.map.delete(k); }
+}
+
+module.exports = { XLSX, FIXTURE, loadFixture, makeSheet, makeWorkbook, m, deptSheetAoa, FakeDb, MemoryStorage };
