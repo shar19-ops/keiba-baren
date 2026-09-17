@@ -164,7 +164,10 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   #gasQr img { image-rendering: pixelated; }
-  #gasSetupLink { word-break: break-all; font-size: 12px; color: var(--ink-soft); }
+  #gasSetupLink { font-size: 12px; color: var(--ink-soft); }
+  .btn-row-spacer { flex: 1 1 auto; }
+  .danger-text { color: var(--accent); border-color: var(--accent); }
+  .app-version { text-align: center; font-size: 11px; color: var(--ink-faint); padding: 18px 0 6px; }
 
   @media print {
     :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
@@ -226,11 +229,15 @@
       <div id="gasQrArea" hidden>
         <p class="hint">下のQRかリンクを受付担当のスマホで開くと、URLの入力なしでこのスプレッドシートに接続できます。</p>
         <div id="gasQr"></div>
-        <p id="gasSetupLink"></p>
+        <div class="field-row">
+          <input type="text" id="gasSetupLink" readonly>
+          <button class="btn small" id="gasCopyLinkBtn">コピー</button>
+        </div>
       </div>
       <div class="btn-row">
         <button class="btn ghost small" id="gasShowQrBtn" hidden>受付端末用のQRを作る</button>
-        <button class="btn ghost small" id="gasChangeBtn" hidden>接続設定を変更</button>
+        <span class="btn-row-spacer"></span>
+        <button class="btn ghost small danger-text" id="gasChangeBtn" hidden>接続設定を変更</button>
       </div>
     </section>
 
@@ -414,6 +421,8 @@
   </div>
 </main>
 
+<p class="app-version no-print" id="appVersion"></p>
+
 <div class="dialog-backdrop" id="dialog" hidden>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
     <h3 id="dialogTitle"></h3>
@@ -451,7 +460,7 @@
 
   // 幹事タブの簡易パスワード保護(受付担当が誤って共有設定などを変更しないため。
   // 本格的なアクセス制御ではなく、ブラウザを閉じるまで有効な簡易ロック)
-  var ORG_PASSWORD = "shukketsu";
+  var ORG_PASSWORD = "skt";
   var ORG_UNLOCK_KEY = "uketsuke_org_unlocked_v1";
   function isOrgUnlocked() {
     try { return sessionStorage.getItem(ORG_UNLOCK_KEY) === "1"; } catch (e) { return false; }
@@ -508,6 +517,8 @@
     App.toast("接続しました");
   });
   $("gasChangeBtn").addEventListener("click", function () {
+    var ok = confirm("接続設定(接続先のスプレッドシート)を変更しますか?\n\nこの端末は今の設定を失い、次に開いた時にもう一度URLの入力が必要になります。受付中のデータ自体は消えません。");
+    if (!ok) return;
     localStorage.removeItem(URL_KEY);
     location.reload();
   });
@@ -517,9 +528,24 @@
     var link = location.origin + location.pathname + "?api=" + encodeURIComponent(v);
     $("gasQr").innerHTML = "";
     new QRCode($("gasQr"), { text: link, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
-    $("gasSetupLink").textContent = link;
+    $("gasSetupLink").value = link;
     $("gasQrArea").hidden = false;
   });
+  $("gasCopyLinkBtn").addEventListener("click", async function () {
+    var v = $("gasSetupLink").value;
+    if (!v) return;
+    try {
+      await navigator.clipboard.writeText(v);
+      App.toast("リンクをコピーしました");
+    } catch (e) {
+      $("gasSetupLink").select();
+      App.toast("コピーできませんでした。選択したので手動でコピーしてください");
+    }
+  });
+
+  // 改訂の目印。デプロイ後に「本当に最新が届いているか」を画面で確認できるようにする
+  var APP_VERSION = "2026-09-17.1";
+  $("appVersion").textContent = "受付スタンプ web版 " + APP_VERSION;
 
   // 起動前に URL があれば、boot() が web ランタイムとして認識できるよう先に用意しておく
   window.UketsukeRuntime = {};
