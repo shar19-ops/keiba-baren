@@ -54,6 +54,13 @@ test("applyKey: 検証中にイベントが差し替わっても正しいパス�
   assert.equal(App.storageGet(App.KEYS.pass), "a");
 });
 
+test("applyKey: salt が不正で deriveKey が例外を投げても bad 状態にして false を返す", async () => {
+  App.state.event = { salt: "not-base64!!", check: "x" };
+  const result = await App.applyKey("a");
+  assert.equal(result, false);
+  assert.equal(App.state.keyStatus, "bad");
+});
+
 test("loadRoster: 復号が終わる前に forgetKey が呼ばれたら、後から届く結果で平文を復活させない", async () => {
   const salt = Core.randomSaltB64();
   const key = await Core.deriveKey("pw", salt);
@@ -67,4 +74,20 @@ test("loadRoster: 復号が終わる前に forgetKey が呼ばれたら、後か
 
   await p;
   assert.equal(App.state.roster, null);
+});
+
+test("loadRoster: 復号中に新しい名簿スナップショットが届いたら、古い結果で上書きしない", async () => {
+  const salt = Core.randomSaltB64();
+  const key = await Core.deriveKey("pw", salt);
+  const blobOld = await Core.encryptJson(key, { people: [{ id: "old" }], sheets: [] });
+  const blobNew = await Core.encryptJson(key, { people: [{ id: "new" }], sheets: [] });
+
+  App.state.key = key;
+  App.state.rosterDoc = { blob: blobOld };
+
+  const p = App.loadRoster();
+  App.state.rosterDoc = { blob: blobNew }; // 復号中に新しいスナップショットが届く
+
+  await p;
+  assert.equal(App.state.roster, null); // 古い doc の結果を捨て、上書きしない
 });

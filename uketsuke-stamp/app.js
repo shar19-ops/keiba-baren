@@ -104,6 +104,7 @@ window.App = (function () {
     var roster = null;
     try { roster = await Core.decryptJson(key, doc.blob); } catch (e) { roster = null; }
     if (gen !== keyGen) return; // 復号中に鍵が変わった / 忘れた: 結果を捨てる
+    if (state.rosterDoc !== doc) return; // 復号中に新しい名簿スナップショットが届いた: 結果を捨てる
     state.roster = roster;
   }
 
@@ -114,8 +115,15 @@ window.App = (function () {
     var seq = ++applySeq;
     state.keyStatus = "checking";
     emit();
-    var key = await Core.deriveKey(passphrase, ev.salt);
-    var ok = await Core.verifyKey(key, ev.check);
+    var key, ok;
+    try {
+      key = await Core.deriveKey(passphrase, ev.salt);
+      ok = await Core.verifyKey(key, ev.check);
+    } catch (e) {
+      // salt が壊れている等で deriveKey/verifyKey が例外を投げても "checking" のまま止めない
+      if (seq === applySeq) { state.keyStatus = "bad"; emit(); }
+      return false;
+    }
     if (seq !== applySeq) return false; // 後から別の applyKey が始まった: そちらに任せる
     if (!state.event || state.event.salt !== ev.salt) {
       // 検証中にイベントが変わった: 結果を捨て、新しいイベントに対してやり直す
@@ -329,7 +337,7 @@ window.App = (function () {
       state.event = snap.exists ? snap.data() : null;
       state.eventLoaded = true;
       emit();
-      syncKeyWithEvent().then(emit);
+      syncKeyWithEvent().then(emit).catch(function (e) { console.error(e); });
     }, function (err) {
       toast("共有DBの購読が切れました(" + err.code + ")。ページを再読み込みしてください");
     });
