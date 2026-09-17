@@ -206,6 +206,48 @@ window.App = (function () {
     return "保存に失敗しました" + (e && e.message ? ": " + e.message : "");
   }
 
+  // ---------- 確認ダイアログ(Artifact の iframe 内では window.confirm / prompt が使えないため自前) ----------
+  var dialogState = null;
+  // opts: { title, message, okLabel, cancelLabel, danger, requireText }
+  // 戻り値: Promise<boolean>。requireText 指定時は入力が一致した時だけ OK が押せる
+  function ask(opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      if (dialogState) dialogState.finish(false);
+      var root = document.getElementById("dialog");
+      var input = document.getElementById("dialogInput");
+      var ok = document.getElementById("dialogOk");
+      document.getElementById("dialogTitle").textContent = opts.title || "確認";
+      document.getElementById("dialogMsg").textContent = opts.message || "";
+      ok.textContent = opts.okLabel || "OK";
+      ok.className = "btn " + (opts.danger ? "danger" : "primary");
+      document.getElementById("dialogCancel").textContent = opts.cancelLabel || "キャンセル";
+      input.hidden = !opts.requireText;
+      input.value = "";
+      input.placeholder = opts.requireText ? "「" + opts.requireText + "」と入力" : "";
+      ok.disabled = !!opts.requireText;
+      root.hidden = false;
+      dialogState = { opts: opts, finish: function (result) { root.hidden = true; dialogState = null; resolve(result); } };
+      (opts.requireText ? input : ok).focus();
+    });
+  }
+  function initDialog() {
+    var root = document.getElementById("dialog");
+    var input = document.getElementById("dialogInput");
+    var ok = document.getElementById("dialogOk");
+    ok.addEventListener("click", function () {
+      if (!dialogState) return;
+      var need = dialogState.opts.requireText;
+      if (need && input.value.trim() !== need) return;
+      dialogState.finish(true);
+    });
+    document.getElementById("dialogCancel").addEventListener("click", function () { if (dialogState) dialogState.finish(false); });
+    root.addEventListener("click", function (e) { if (e.target === root && dialogState) dialogState.finish(false); });
+    input.addEventListener("input", function () { if (dialogState) ok.disabled = input.value.trim() !== dialogState.opts.requireText; });
+    input.addEventListener("keydown", function (e) { if (e.key === "Enter" && !ok.disabled) ok.click(); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && dialogState) dialogState.finish(false); });
+  }
+
   // ---------- タブ ----------
   var TAB_NAMES = ["kanji", "uketsuke", "status"];
   function selectTab(name) {
@@ -234,6 +276,7 @@ window.App = (function () {
     document.querySelectorAll(".tab-btn").forEach(function (btn) {
       btn.addEventListener("click", function () { selectTab(btn.dataset.tab); });
     });
+    initDialog();
     Object.keys(tabs).forEach(function (k) { tabs[k].init(); });
     onChange(function () {
       renderHead();
@@ -287,6 +330,7 @@ window.App = (function () {
     el: el,
     clear: clear,
     checkins: checkins,
+    ask: ask,
     applyKey: applyKey,
     adoptKey: adoptKey,
     forgetKey: forgetKey,

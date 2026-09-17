@@ -61,8 +61,8 @@ App.tabs.status = (function () {
         App.el("span", { class: "ci-name", text: r.name }),
         App.el("span", { class: "ci-dept", text: r.dept + (r.judge ? "・" + r.judge : "") }),
         App.el("span", { class: "ci-meta", text: Core.formatTime(r.t) + " " + r.dev + " " + (Core.KIND_LABEL[r.kind] || r.kind) }),
-        App.el("button", { class: "ci-undo", text: "取消", onClick: function () {
-          if (!confirm(r.name + " の受付を取り消しますか?")) return;
+        App.el("button", { class: "ci-undo", text: "取消", onClick: async function () {
+          if (!(await App.ask({ title: "受付の取消", message: r.name + " の受付を取り消しますか?", okLabel: "取り消す", danger: true }))) return;
           state.store.cancel(r.pid);
         } })
       ]));

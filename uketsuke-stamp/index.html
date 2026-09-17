@@ -138,6 +138,14 @@
   .status-line { font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
   .status-line.bad { color: var(--accent); }
 
+  .dialog-backdrop { position: fixed; inset: 0; background: rgba(11,14,19,0.55); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
+  .dialog { background: var(--surface); color: var(--ink); border-radius: var(--radius-m); padding: 18px; width: 100%; max-width: 420px; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+  .dialog h3 { margin: 0 0 8px; font-size: 15px; }
+  .dialog p { margin: 0 0 12px; font-size: 13.5px; line-height: 1.6; white-space: pre-line; color: var(--ink-soft); }
+  .dialog input { margin-bottom: 12px; }
+  .dialog .btn-row { justify-content: flex-end; margin-top: 4px; }
+  .dialog .btn.danger { background: var(--accent); border-color: var(--accent); color: #fff; }
+
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(12px); background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 999px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 50; max-width: 86%; text-align: center; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -341,6 +349,18 @@
     </div>
   </div>
 </main>
+
+<div class="dialog-backdrop" id="dialog" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+    <h3 id="dialogTitle"></h3>
+    <p id="dialogMsg"></p>
+    <input type="text" id="dialogInput" hidden autocomplete="off">
+    <div class="btn-row">
+      <button class="btn ghost" id="dialogCancel">キャンセル</button>
+      <button class="btn primary" id="dialogOk">OK</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 

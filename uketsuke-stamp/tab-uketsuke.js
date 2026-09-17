@@ -23,8 +23,8 @@ App.tabs.uketsuke = (function () {
     $("scanToggleBtn").addEventListener("click", function () { if (scanning) stopScanning(); else if (!starting) startScanning(); });
     $("searchInput").addEventListener("input", renderSearch);
     $("walkinAddBtn").addEventListener("click", addWalkin);
-    $("forgetKeyBtn").addEventListener("click", function () {
-      if (!confirm("この端末からパスフレーズを削除します。次回は再入力が必要です。")) return;
+    $("forgetKeyBtn").addEventListener("click", async function () {
+      if (!(await App.ask({ title: "パスフレーズを忘れる", message: "この端末からパスフレーズを削除します。次回は再入力が必要です。", okLabel: "忘れる", danger: true }))) return;
       stopScanning();
       App.forgetKey();
     });
@@ -208,9 +208,10 @@ App.tabs.uketsuke = (function () {
         ])
       ]);
       if (!rec) {
-        li.addEventListener("click", function () {
+        li.addEventListener("click", async function () {
           if (App.state.store.get(p.id)) { App.toast(p.name + " は受付済みです"); return; }
-          if (!confirm(p.name + "(" + p.dept + ")を受付しますか?")) return;
+          if (!(await App.ask({ title: "受付", message: p.name + "(" + p.dept + ")を受付しますか?", okLabel: "受付する" }))) return;
+          if (App.state.store.get(p.id)) { App.toast(p.name + " は受付済みです"); App.emit(); return; }
           recordCheckin(p.id, "manual");
           flashStamp("ok", p.name + "　" + p.dept);
           $("searchInput").value = "";
@@ -251,8 +252,8 @@ App.tabs.uketsuke = (function () {
         App.el("span", { class: "ci-name", text: r.name }),
         App.el("span", { class: "ci-dept", text: r.dept }),
         App.el("span", { class: "ci-meta", text: Core.formatTime(r.t) + " " + (Core.KIND_LABEL[r.kind] || r.kind) }),
-        App.el("button", { class: "ci-undo", text: "取消", onClick: function () {
-          if (!confirm(r.name + " の受付を取り消しますか?")) return;
+        App.el("button", { class: "ci-undo", text: "取消", onClick: async function () {
+          if (!(await App.ask({ title: "受付の取消", message: r.name + " の受付を取り消しますか?", okLabel: "取り消す", danger: true }))) return;
           App.state.store.cancel(r.pid);
         } })
       ]);

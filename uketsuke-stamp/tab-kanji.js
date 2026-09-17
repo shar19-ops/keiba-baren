@@ -5,6 +5,7 @@ App.tabs.kanji = (function () {
   var $ = function (id) { return document.getElementById(id); };
   var parsed = null; // 直近に取り込んだ parseWorkbook の結果
   var saving = false;
+  var NL = String.fromCharCode(10);
 
   function init() {
     ["evTitle", "evDate", "evVenue"].forEach(function (id) {
@@ -149,7 +150,7 @@ App.tabs.kanji = (function () {
     var people = await Core.assignIds(key, parsed.people);
     if (state.roster) {
       var d = Core.rosterDiff(state.roster.people, people);
-      if (!confirm("共有DBの名簿を上書きします。\n追加 " + d.added + " 名 / 削除 " + d.removed + " 名 / 変更 " + d.changed + " 名\n受付記録はそのまま残ります。よろしいですか?")) {
+      if (!(await App.ask({ title: "名簿を上書き", message: "追加 " + d.added + " 名 / 削除 " + d.removed + " 名 / 変更 " + d.changed + " 名" + NL + "受付記録はそのまま残ります。", okLabel: "上書きする" }))) {
         return;
       }
     }
@@ -230,8 +231,7 @@ App.tabs.kanji = (function () {
   async function resetEvent() {
     var state = App.state;
     if (!state.db) return;
-    var typed = prompt("イベント設定・名簿・全端末の受付記録を共有DBから削除します。\n続行するには「削除」と入力してください。");
-    if (typed !== "削除") return;
+    if (!(await App.ask({ title: "新しいイベントを開始", message: "イベント設定・名簿・全端末の受付記録を共有DBから削除します。先に書き出しを済ませてください。", okLabel: "すべて削除", danger: true, requireText: "削除" }))) return;
     $("resetBtn").disabled = true;
     try {
       var snap = await state.db.collection("checkins").get();
