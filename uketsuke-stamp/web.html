@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>受付スタンプ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+  :root {
+    --bg: #F6F5F1; --surface: #FFFFFF; --ink: #202A3B; --ink-soft: #626B7C; --ink-faint: #9298A6;
+    --accent: #B8392F; --accent-ink: #7A241D; --accent-soft: #F4DEDA; --border: #DEDBD1;
+    --success: #3C6E52; --success-soft: #DCEBE1; --warn: #A66A00; --warn-soft: #F7EBD0;
+    --radius-s: 6px; --radius-m: 10px;
+    --font: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181F; --surface: #1D2330; --ink: #EDEFF3; --ink-soft: #A7AEBC; --ink-faint: #6E7686;
+      --accent: #E0776C; --accent-ink: #F3B4AC; --accent-soft: #3A2523; --border: #303645;
+      --success: #6FBE93; --success-soft: #1E3329; --warn: #E0B25A; --warn-soft: #3A2F18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181F; --surface: #1D2330; --ink: #EDEFF3; --ink-soft: #A7AEBC; --ink-faint: #6E7686;
+    --accent: #E0776C; --accent-ink: #F3B4AC; --accent-soft: #3A2523; --border: #303645;
+    --success: #6FBE93; --success-soft: #1E3329; --warn: #E0B25A; --warn-soft: #3A2F18;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; -webkit-tap-highlight-color: transparent; }
+  body { min-height: 100vh; padding-bottom: 48px; }
+  a { color: inherit; }
+  [hidden] { display: none !important; }
+
+  header.app-head { padding: 18px 16px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .stamp-mark { width: 34px; height: 34px; border: 2.5px solid var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--accent); font-weight: 800; font-size: 13px; flex-shrink: 0; transform: rotate(-8deg); }
+  h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: 0.01em; }
+  .brand-sub { font-size: 12px; color: var(--ink-faint); margin: 4px 0 0 44px; min-height: 1.4em; }
+
+  nav.tabs { display: flex; max-width: 680px; margin: 14px auto 0; padding: 0 16px; gap: 8px; }
+  .tab-btn { flex: 1; padding: 11px 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft); border-radius: 999px; font-family: var(--font); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .tab-btn.active { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+
+  main { max-width: 680px; margin: 16px auto 0; padding: 0 16px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  section.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 16px; margin-bottom: 14px; }
+  section.card.danger { border-color: var(--accent); }
+  section.card h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .card-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 12px; }
+  .hint { font-size: 11.5px; color: var(--ink-faint); margin-top: 6px; line-height: 1.5; }
+  .note { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+
+  label.field { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 10px; }
+  label.field input { margin-top: 4px; }
+  input[type=text], input[type=password], input[type=search] { width: 100%; border: 1px solid var(--border); border-radius: var(--radius-s); padding: 10px 12px; font-family: var(--font); font-size: 14px; color: var(--ink); background: var(--bg); }
+  input[type=file] { font-family: var(--font); font-size: 13px; max-width: 100%; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .field-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .field-row input { flex: 1; min-width: 120px; }
+  .radio-row { display: flex; gap: 16px; margin: 8px 0 4px; font-size: 13px; }
+
+  button.btn { font-family: var(--font); font-size: 14px; font-weight: 600; border-radius: var(--radius-s); padding: 11px 18px; border: 1px solid var(--ink); background: var(--ink); color: var(--surface); cursor: pointer; }
+  button.btn:active { opacity: 0.75; }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); }
+  button.btn.ghost { background: transparent; color: var(--ink); }
+  button.btn.small { padding: 7px 12px; font-size: 12.5px; }
+  button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+  table.simple { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+  table.simple th, table.simple td { padding: 6px 6px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+  table.simple th:first-child, table.simple td:first-child { text-align: left; white-space: normal; }
+  table.simple th { color: var(--ink-soft); font-weight: 600; }
+  table.simple tr.total td { font-weight: 700; }
+  table.simple tr.clickable { cursor: pointer; }
+  table.simple tr.detail td { text-align: left; white-space: normal; color: var(--ink-soft); font-size: 12px; background: var(--bg); }
+  .table-wrap { overflow-x: auto; }
+  ul.warnings { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--warn); }
+
+  .qr-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 16px; }
+  .qr-tag { border: 1px dashed var(--border); border-radius: var(--radius-s); padding: 10px; text-align: center; break-inside: avoid; }
+  .qr-tag .qr-box { display: flex; justify-content: center; margin-bottom: 6px; }
+  .qr-tag .tag-name { font-size: 14px; font-weight: 700; }
+  .qr-tag .tag-dept { font-size: 11px; color: var(--ink-soft); margin-top: 1px; }
+
+  .scan-frame { position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 380px; background: #0B0E13; border-radius: var(--radius-m); overflow: hidden; }
+  .scan-frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .scan-frame .corners::before, .scan-frame .corners::after { content: ""; position: absolute; width: 34px; height: 34px; border: 3px solid rgba(255,255,255,0.85); }
+  .scan-frame .corner-tl { top: 22px; left: 22px; border-right: none; border-bottom: none; }
+  .scan-frame .corner-br { bottom: 22px; right: 22px; border-left: none; border-top: none; }
+  .scan-frame .idle-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #C7CCD6; font-size: 13px; text-align: center; padding: 20px; }
+  .stamp-flash { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0; }
+  .stamp-flash.show { animation: stampIn 1100ms ease forwards; }
+  @keyframes stampIn {
+    0% { opacity: 0; transform: scale(1.8) rotate(-18deg); }
+    15% { opacity: 1; transform: scale(1) rotate(-10deg); }
+    75% { opacity: 1; transform: scale(1) rotate(-10deg); }
+    100% { opacity: 0; transform: scale(1) rotate(-10deg); }
+  }
+  .stamp-flash .ring { border: 5px solid var(--accent); color: var(--accent); border-radius: 50%; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center; flex-direction: column; background: rgba(11,14,19,0.6); }
+  .stamp-flash .ring .kanji { font-size: 26px; font-weight: 800; letter-spacing: 0.15em; }
+  .stamp-flash .ring .who { font-size: 12px; margin-top: 4px; color: #F1D9D6; max-width: 110px; text-align: center; line-height: 1.3; white-space: pre-line; }
+  .stamp-flash.dup .ring { border-color: #B9BEC8; color: #B9BEC8; }
+  .stamp-flash.unknown .ring { border-color: #E0B25A; color: #E0B25A; }
+
+  .counter-strip { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; }
+  .counter-strip .count-num { font-size: 28px; font-weight: 800; }
+  .counter-strip .count-label { font-size: 12px; color: var(--ink-soft); }
+  .badge { font-size: 11.5px; padding: 3px 10px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+  .badge.ok { background: var(--success-soft); color: var(--success); }
+
+  ul.checkin-list, ul.people-list { list-style: none; margin: 0; padding: 0; }
+  ul.checkin-list li, ul.people-list li { display: flex; align-items: center; gap: 8px; padding: 10px 2px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  ul.checkin-list li:last-child, ul.people-list li:last-child { border-bottom: none; }
+  .ci-name { font-weight: 600; }
+  .ci-dept { color: var(--ink-soft); font-size: 12px; }
+  .ci-meta { color: var(--ink-faint); font-size: 12px; margin-left: auto; text-align: right; white-space: nowrap; }
+  .ci-undo { background: none; border: none; color: var(--ink-faint); font-size: 12px; cursor: pointer; text-decoration: underline; font-family: var(--font); }
+  ul.people-list li { cursor: pointer; }
+  ul.people-list li.done { opacity: 0.55; cursor: default; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--bg); color: var(--ink-soft); border: 1px solid var(--border); }
+  .pill.yes { background: var(--success-soft); color: var(--success); border-color: transparent; }
+  .pill.done { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
+  .empty-note { color: var(--ink-faint); font-size: 12.5px; padding: 14px 2px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .tile { background: var(--bg); border-radius: var(--radius-s); padding: 10px 8px; text-align: center; }
+  .tile .num { font-size: 22px; font-weight: 800; }
+  .tile .lbl { font-size: 11px; color: var(--ink-soft); }
+  .tile.accent .num { color: var(--accent); }
+  @media (max-width: 420px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+
+  .gate { text-align: center; padding: 10px 0; }
+  .gate p { margin: 0 0 12px; color: var(--ink-soft); }
+  .gate .field-row { justify-content: center; }
+  .status-line { font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
+  .status-line.bad { color: var(--accent); }
+  .status-line.ok { color: var(--success); }
+
+  .dialog-backdrop { position: fixed; inset: 0; background: rgba(11,14,19,0.55); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
+  .dialog { background: var(--surface); color: var(--ink); border-radius: var(--radius-m); padding: 18px; width: 100%; max-width: 420px; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+  .dialog h3 { margin: 0 0 8px; font-size: 15px; }
+  .dialog p { margin: 0 0 12px; font-size: 13.5px; line-height: 1.6; white-space: pre-line; color: var(--ink-soft); }
+  .dialog input { margin-bottom: 12px; }
+  .dialog .btn-row { justify-content: flex-end; margin-top: 4px; }
+  .dialog .btn.danger { background: var(--accent); border-color: var(--accent); }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(12px); background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 999px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 50; max-width: 86%; text-align: center; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #gasQr img { image-rendering: pixelated; }
+  #gasSetupLink { word-break: break-all; font-size: 12px; color: var(--ink-soft); }
+
+  @media print {
+    :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+      --bg: #fff; --surface: #fff; --ink: #202A3B; --ink-soft: #626B7C; --ink-faint: #9298A6; --border: #DEDBD1;
+    }
+    header.app-head, nav.tabs, .no-print { display: none !important; }
+    body { background: #fff; }
+    main { max-width: none; margin: 0; padding: 0; }
+    .panel { display: none !important; }
+    #panel-kanji { display: block !important; }
+    #panel-kanji section.card { display: none; border: none; padding: 0; }
+    #panel-kanji section.card.qr-card { display: block; }
+    #panel-kanji section.card.qr-card > :not(.qr-grid) { display: none; }
+    .qr-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-head">
+  <div class="brand">
+    <div class="stamp-mark">印</div>
+    <h1>受付スタンプ</h1>
+  </div>
+  <p class="brand-sub" id="headEvent">社内イベント出欠のその場デジタル受付(claude.aiアカウント不要版)</p>
+</header>
+
+<nav class="tabs no-print">
+  <button class="tab-btn" data-tab="kanji">幹事</button>
+  <button class="tab-btn" data-tab="uketsuke">受付</button>
+  <button class="tab-btn" data-tab="status">状況</button>
+</nav>
+
+<main>
+  <!-- 幹事タブ -->
+  <div class="panel" id="panel-kanji">
+    <section class="card" id="gasSetupCard">
+      <h2>共有設定(Google スプレッドシート)</h2>
+      <p class="card-desc">このアプリはデータを Google スプレッドシートに保存します。まだ設定していない場合は、先に <code>gas-backend.gs</code> の手順でスプレッドシートを用意し、発行された URL(<code>.../exec</code>)を下に貼り付けてください。</p>
+      <div class="field-row">
+        <input type="text" id="gasUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+        <button class="btn primary small" id="gasConnectBtn">接続</button>
+      </div>
+      <p class="status-line" id="gasStatus">未接続</p>
+      <div id="gasQrArea" hidden>
+        <p class="hint">下のQRかリンクを受付担当のスマホで開くと、URLの入力なしでこのスプレッドシートに接続できます。</p>
+        <div id="gasQr"></div>
+        <p id="gasSetupLink"></p>
+      </div>
+      <div class="btn-row">
+        <button class="btn ghost small" id="gasShowQrBtn" hidden>受付端末用のQRを作る</button>
+        <button class="btn ghost small" id="gasChangeBtn" hidden>接続設定を変更</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>1. イベント設定</h2>
+      <p class="card-desc">Excel を取り込むと自動で入ります。必要なら書き換えてから保存してください。</p>
+      <label class="field">イベント名<input type="text" id="evTitle"></label>
+      <label class="field">日時<input type="text" id="evDate"></label>
+      <label class="field">会場<input type="text" id="evVenue"></label>
+      <div id="passSetup">
+        <label class="field">パスフレーズ(4文字以上。受付端末で入力します)<input type="password" id="passNew" autocomplete="new-password"></label>
+        <label class="field">パスフレーズ(確認)<input type="password" id="passNew2" autocomplete="new-password"></label>
+        <p class="hint">名簿はこのパスフレーズで暗号化して共有DBに保存します。後から変更はできません(変えると印刷済みQRが無効になるため)。変えたい場合は「新しいイベントを開始」してください。</p>
+      </div>
+      <p class="status-line" id="passStatus" hidden>パスフレーズ: 設定済み</p>
+      <div id="kanjiUnlock" hidden>
+        <p class="note">この端末にはパスフレーズが保存されていません。名簿の再取込・QR発行・書き出しにはパスフレーズが必要です。</p>
+        <div class="field-row">
+          <input type="password" id="kanjiPass" placeholder="パスフレーズ" autocomplete="current-password">
+          <button class="btn small" id="kanjiUnlockBtn">確認</button>
+        </div>
+        <p class="status-line bad" id="kanjiUnlockMsg" hidden></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 名簿を取り込む</h2>
+      <p class="card-desc">部署ごとにシートが分かれた出欠表(.xlsx / .xlsm)を選んでください。ファイルの中身はこの端末内で解析され、氏名は暗号化してから共有DBに保存されます。</p>
+      <input type="file" id="xlsxFile" accept=".xlsx,.xlsm,.xls">
+      <div id="importPreview" hidden>
+        <div class="table-wrap"><table class="simple" id="previewTable"></table></div>
+        <ul class="warnings" id="previewWarnings"></ul>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" id="saveRosterBtn" disabled>名簿を共有DBに保存</button>
+      </div>
+      <p class="hint" id="rosterInfo">共有DBの名簿: 未登録</p>
+    </section>
+
+    <section class="card qr-card">
+      <h2>3. QRコードを発行</h2>
+      <p class="card-desc">QRには参加者IDだけを埋め込みます(氏名は入りません)。切り取って名札などに添付してください。</p>
+      <div class="radio-row">
+        <label><input type="radio" name="qrTarget" value="yes" checked> 予定〇の人のみ</label>
+        <label><input type="radio" name="qrTarget" value="all"> 全員</label>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" id="genQrBtn">QRを生成</button>
+        <button class="btn" id="printBtn" hidden>印刷用HTMLを保存</button>
+      </div>
+      <p class="hint" id="printHint" hidden>保存したHTMLをブラウザで開いて印刷してください</p>
+      <div class="qr-grid" id="qrGrid"></div>
+    </section>
+
+    <section class="card">
+      <h2>4. 書き出し</h2>
+      <p class="card-desc">全端末分の受付記録をまとめて書き出します。Excel は元の出欠表と同じシート構成で、「当日出欠席」列をそのまま貼り付けられます。</p>
+      <div class="btn-row">
+        <button class="btn" id="exportCsvBtn">CSV(受付一覧)</button>
+        <button class="btn" id="exportXlsxBtn">Excel(当日出欠)</button>
+      </div>
+    </section>
+
+    <section class="card danger">
+      <h2>新しいイベントを開始</h2>
+      <p class="card-desc">イベント設定・名簿・全端末の受付記録を共有DBから削除します。先に書き出しを済ませてください。参加人数が多いと削除に数分かかります。</p>
+      <div class="btn-row">
+        <button class="btn ghost" id="resetBtn">すべて削除して新しいイベントを開始</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 受付タブ -->
+  <div class="panel" id="panel-uketsuke">
+    <section class="card gate" id="gateCard">
+      <p id="gateMsg">読み込み中…</p>
+      <div id="gateForm" hidden>
+        <div class="field-row">
+          <input type="password" id="gatePass" placeholder="パスフレーズ" autocomplete="current-password">
+          <button class="btn primary small" id="gateBtn">入力</button>
+        </div>
+        <p class="status-line bad" id="gateErr" hidden>パスフレーズが違います</p>
+      </div>
+    </section>
+
+    <div id="uketsukeMain" hidden>
+      <section class="card">
+        <div class="counter-strip">
+          <div>
+            <span class="count-num" id="cntChecked">0</span>
+            <span class="count-label"> 名受付 / 予定〇 <span id="cntPlan">0</span> 名</span>
+          </div>
+          <span class="badge" id="pendingBadge" hidden>未送信 0 件</span>
+        </div>
+        <label class="field">端末名(集計時の区別用)<input type="text" id="deviceLabel" placeholder="例: 受付1"></label>
+
+        <div class="scan-frame" id="scanFrame">
+          <video id="video" playsinline muted></video>
+          <div class="corners corner-tl"></div>
+          <div class="corners corner-br"></div>
+          <div class="idle-msg" id="idleMsg">「スキャン開始」を押してカメラを起動してください</div>
+          <div class="stamp-flash" id="stampFlash">
+            <div class="ring">
+              <div class="kanji" id="stampKanji">受付</div>
+              <div class="who" id="stampWho"></div>
+            </div>
+          </div>
+        </div>
+        <canvas id="canvas" hidden></canvas>
+        <div class="btn-row">
+          <button class="btn primary" id="scanToggleBtn">スキャン開始</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>名簿から受付</h2>
+        <p class="card-desc">QRが読めない・持っていない人はここで検索してタップしてください。</p>
+        <input type="search" id="searchInput" placeholder="氏名の一部 または 部署名">
+        <ul class="people-list" id="searchResults"></ul>
+        <p class="hint" id="searchHint"></p>
+      </section>
+
+      <section class="card">
+        <h2>飛び入り(名簿にない人)</h2>
+        <div class="field-row">
+          <input type="text" id="walkinName" placeholder="氏名">
+          <input type="text" id="walkinDept" placeholder="所属(任意)">
+          <button class="btn small" id="walkinAddBtn">追加</button>
+        </div>
+        <p class="hint">氏名・所属は暗号化して保存されます。</p>
+      </section>
+
+      <section class="card">
+        <h2>この端末の受付履歴</h2>
+        <ul class="checkin-list" id="myHistory"></ul>
+        <div class="empty-note" id="myHistoryEmpty">まだ受付記録がありません。</div>
+        <div class="btn-row">
+          <button class="btn ghost small" id="forgetKeyBtn">この端末からパスフレーズを忘れる</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 状況タブ -->
+  <div class="panel" id="panel-status">
+    <section class="card gate" id="statusGate">
+      <p id="statusGateMsg">読み込み中…</p>
+    </section>
+
+    <div id="statusMain" hidden>
+      <section class="card">
+        <div class="tiles">
+          <div class="tile accent"><div class="num" id="tChecked">0</div><div class="lbl">受付済</div></div>
+          <div class="tile"><div class="num" id="tPlan">0</div><div class="lbl">予定〇</div></div>
+          <div class="tile"><div class="num" id="tMissing">0</div><div class="lbl">未受付</div></div>
+          <div class="tile"><div class="num" id="tUnexpected">0</div><div class="lbl">予定外出席</div></div>
+        </div>
+        <p class="hint" id="statusUpdated"></p>
+      </section>
+
+      <section class="card">
+        <h2>部署別</h2>
+        <p class="card-desc">行をタップすると未受付の人が表示されます。</p>
+        <div class="table-wrap"><table class="simple" id="deptTable"></table></div>
+      </section>
+
+      <section class="card">
+        <h2>受付履歴(全端末)</h2>
+        <ul class="checkin-list" id="allHistory"></ul>
+        <div class="empty-note" id="allHistoryEmpty">まだ受付記録がありません。</div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div class="dialog-backdrop" id="dialog" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+    <h3 id="dialogTitle"></h3>
+    <p id="dialogMsg"></p>
+    <input type="text" id="dialogInput" hidden autocomplete="off">
+    <div class="btn-row">
+      <button class="btn ghost" id="dialogCancel">キャンセル</button>
+      <button class="btn primary" id="dialogOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="core.js"></script>
+<script src="sync.js"></script>
+<script src="gas-db.js"></script>
+<script src="app.js"></script>
+<script src="tab-kanji.js"></script>
+<script src="tab-uketsuke.js"></script>
+<script src="tab-status.js"></script>
+<script>
+(function () {
+  "use strict";
+  var URL_KEY = "uketsuke_gas_url_v1";
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ?api=... で開かれた場合は URL を保存してアドレスバーから消す(QR経由の設定用)
+  var fromQr = new URLSearchParams(location.search).get("api");
+  if (fromQr) {
+    localStorage.setItem(URL_KEY, fromQr);
+    history.replaceState({}, "", location.origin + location.pathname);
+  }
+  var savedUrl = localStorage.getItem(URL_KEY) || "";
+
+  function shortUrl(u) {
+    return u.length > 46 ? u.slice(0, 30) + "…" + u.slice(-12) : u;
+  }
+
+  function renderGasCard(connected, url) {
+    $("gasStatus").textContent = connected ? "接続済み: " + shortUrl(url) : "未接続";
+    $("gasStatus").className = "status-line " + (connected ? "ok" : "");
+    $("gasUrlInput").hidden = connected;
+    $("gasConnectBtn").hidden = connected;
+    $("gasShowQrBtn").hidden = !connected;
+    $("gasChangeBtn").hidden = !connected;
+    if (!connected) $("gasQrArea").hidden = true;
+  }
+
+  function connect(url) {
+    window.UketsukeRuntime = window.UketsukeRuntime || {};
+    var db = new UketsukeGasDb.GasDb({ url: url });
+    db.start();
+    window.UketsukeRuntime.db = db;
+    if (window.App && App.state.runtimeReady) {
+      // 起動後に初めて接続した場合(未設定のまま起動した後で URL を入力したケース)
+      App.connectDb(db, null);
+    }
+    renderGasCard(true, url);
+  }
+
+  $("gasConnectBtn").addEventListener("click", function () {
+    var v = $("gasUrlInput").value.trim();
+    if (!v) { App.toast("URLを入力してください"); return; }
+    localStorage.setItem(URL_KEY, v);
+    connect(v);
+    App.toast("接続しました");
+  });
+  $("gasChangeBtn").addEventListener("click", function () {
+    localStorage.removeItem(URL_KEY);
+    location.reload();
+  });
+  $("gasShowQrBtn").addEventListener("click", function () {
+    var v = localStorage.getItem(URL_KEY) || "";
+    if (!v) return;
+    var link = location.origin + location.pathname + "?api=" + encodeURIComponent(v);
+    $("gasQr").innerHTML = "";
+    new QRCode($("gasQr"), { text: link, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+    $("gasSetupLink").textContent = link;
+    $("gasQrArea").hidden = false;
+  });
+
+  // 起動前に URL があれば、boot() が web ランタイムとして認識できるよう先に用意しておく
+  window.UketsukeRuntime = {};
+  if (savedUrl) {
+    var db0 = new UketsukeGasDb.GasDb({ url: savedUrl });
+    db0.start();
+    window.UketsukeRuntime.db = db0;
+  }
+
+  App.boot().then(function () {
+    renderGasCard(!!savedUrl, savedUrl);
+  });
+})();
+</script>
+</body>
+</html>

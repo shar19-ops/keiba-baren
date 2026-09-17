@@ -8,6 +8,7 @@ window.App = (function () {
 
   var state = {
     runtimeReady: false,
+    runtimeKind: null, // null | "claude" | "web"
     db: null,
     downloads: null,
     event: null,
@@ -146,6 +147,10 @@ window.App = (function () {
 
   // 幹事が初回保存で作った鍵をそのまま使う
   function adoptKey(passphrase, key, salt) {
+    // event/current の書込完了通知が同期的に届く実装(GasDb 等)では、この直前に
+    // 発火した syncKeyWithEvent の中で古い端末保存パスフレーズによる applyKey が
+    // まだ進行中のことがある。applySeq を進めて、その結果でここを上書きさせない。
+    applySeq++;
     state.key = key;
     state.keySalt = salt;
     state.keyStatus = "ok";
@@ -304,30 +309,10 @@ window.App = (function () {
     }
   }
 
-  // ---------- 起動 ----------
-  async function boot() {
-    document.querySelectorAll(".tab-btn").forEach(function (btn) {
-      btn.addEventListener("click", function () { selectTab(btn.dataset.tab); });
-    });
-    initDialog();
-    Object.keys(tabs).forEach(function (k) { tabs[k].init(); });
-    onChange(function () {
-      renderHead();
-      Object.keys(tabs).forEach(function (k) { tabs[k].render(state); });
-    });
-    selectTab(storageGet(KEYS.tab) || "uketsuke");
-    emit();
-
-    if (!(window.claude && typeof window.claude.use === "function")) {
-      state.runtimeReady = true;
-      state.eventLoaded = true;
-      emit();
-      return;
-    }
-    var got = await Promise.all([window.claude.use("db"), window.claude.use("downloads")]);
-    state.db = got[0];
-    state.downloads = got[1];
-    state.runtimeReady = true;
+  // ---------- 共有DBへの接続(claude.ai 版 / web 版で共通) ----------
+  function connectDb(db, downloads) {
+    state.db = db;
+    state.downloads = downloads || null;
     if (!state.db) {
       state.eventLoaded = true;
       emit();
@@ -353,6 +338,39 @@ window.App = (function () {
     emit();
   }
 
+  // ---------- 起動 ----------
+  async function boot() {
+    document.querySelectorAll(".tab-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () { selectTab(btn.dataset.tab); });
+    });
+    initDialog();
+    Object.keys(tabs).forEach(function (k) { tabs[k].init(); });
+    onChange(function () {
+      renderHead();
+      Object.keys(tabs).forEach(function (k) { tabs[k].render(state); });
+    });
+    selectTab(storageGet(KEYS.tab) || "uketsuke");
+    emit();
+
+    if (window.claude && typeof window.claude.use === "function") {
+      state.runtimeKind = "claude";
+      var got = await Promise.all([window.claude.use("db"), window.claude.use("downloads")]);
+      state.runtimeReady = true;
+      connectDb(got[0], got[1]);
+      return;
+    }
+    if (window.UketsukeRuntime && window.UketsukeRuntime.db) {
+      state.runtimeKind = "web";
+      state.runtimeReady = true;
+      connectDb(window.UketsukeRuntime.db, window.UketsukeRuntime.downloads);
+      return;
+    }
+    state.runtimeKind = window.UketsukeRuntime ? "web" : null;
+    state.runtimeReady = true;
+    state.eventLoaded = true;
+    emit();
+  }
+
   return {
     state: state,
     KEYS: KEYS,
@@ -368,6 +386,7 @@ window.App = (function () {
     adoptKey: adoptKey,
     forgetKey: forgetKey,
     loadRoster: loadRoster,
+    connectDb: connectDb,
     saveFile: saveFile,
     writeErrorMessage: writeErrorMessage,
     selectTab: selectTab,

@@ -1,10 +1,25 @@
 # 受付スタンプ(社内イベント出欠管理)
 
 社内イベントの受付を、印刷した QR コードとスマホのカメラで行うアプリです。
-claude.ai の Artifact として公開し、受付端末は URL を開くだけで使えます。
+2 つの版があり、画面や使い方(名簿取込・QR発行・受付・書き出し)はどちらも同じです。違うのはデータの保存先だけです。
 
-- 公開 URL: https://claude.ai/artifact/TyjKsZTTPJA9mtbhiD7Piy
-- 設計書: `docs/superpowers/specs/2026-09-16-uketsuke-stamp-upgrade-design.md`
+| | claude.ai 版 | web版(claude.aiアカウント不要) |
+|---|---|---|
+| 使う人 | claude.ai アカウントを持つ社員のみ | 誰でも(URLを知っていれば) |
+| データの保存先 | claude.ai の共有DB | 幹事が用意する Google スプレッドシート |
+| アクセス制御 | 幹事だけが書込可、という設定ができる | できない(URLを知っていれば誰でも読み書きできる) |
+| 開き方 | https://claude.ai/artifact/TyjKsZTTPJA9mtbhiD7Piy | `web.html` を配布(下記セットアップ参照) |
+
+claude.ai アカウントを持たない受付担当がいる場合は web版を使ってください。設計書: `docs/superpowers/specs/2026-09-16-uketsuke-stamp-upgrade-design.md`
+
+## web版のセットアップ(claude.aiアカウント不要)
+
+1. **スプレッドシートを用意する**: 新しい Google スプレッドシートを作成 →「拡張機能」→「Apps Script」を開き、`gas-backend.gs` の内容を貼り付けて保存 →「デプロイ」→「新しいデプロイ」(種類: ウェブアプリ / 実行ユーザー: 自分 / アクセス: 全員)→ 発行された `.../exec` の URL をコピー
+2. **`web.html` を配置する**: `index.html` と同様、`core.js` `sync.js` `gas-db.js` `app.js` `tab-*.js` と同じフォルダに置いて配信する(例: GitHub Pages。既存の `keiba-baren.html` と同じ仕組み)
+3. **幹事**: `web.html` を開き、「幹事」タブ最上部の「共有設定」に 1. の URL を貼って「接続」
+4. **受付担当への配布**: 同じカードの「受付端末用のQRを作る」で出るQR(またはリンク)を各端末で開くと、URLの入力なしで同じスプレッドシートに接続されます
+
+**セキュリティ上の注意**: web版は claude.ai 版と違い、「幹事だけ書込可」のようなアクセス制御ができません。スプレッドシートのURL(と、それが埋め込まれたQR/リンク)を知っている人は誰でも読み書きできます。受付担当以外に広めないでください。
 
 ## しくみ(個人情報の扱い)
 
@@ -64,5 +79,7 @@ npx --yes serve@14 -l 8765 .  # http://localhost:8765/tests/dev.html でロー�
 
 - `core.js`: Excel 解析・ID・暗号化・集計・書き出し(純粋関数)
 - `sync.js`: 共有DBの購読と端末内キュー
-- `app.js` / `tab-*.js` / `index.html`: 画面
+- `gas-db.js`: `sync.js`/`app.js` が期待する doc()/collection() インターフェースを Google Apps Script(スプレッドシート)で実装するアダプター(web版専用)
+- `gas-backend.gs`: web版のバックエンド(Google Apps Script に貼り付けて使う)
+- `app.js` / `tab-*.js` / `index.html`: 画面(claude.ai版)。`web.html` は同じ画面・スクリプトを使う standalone 版(CSSは重複して埋め込み。UIを変える時は両方に反映してください)
 - `tests/fixtures/sample-出欠表.xlsx`: 実名を含まないテスト用 Excel(`npm run make-fixture` で実ファイルから再生成。`XLSX_PATH` に実ファイルのパスを設定)

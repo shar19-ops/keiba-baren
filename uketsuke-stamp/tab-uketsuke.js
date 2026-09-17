@@ -44,7 +44,9 @@ App.tabs.uketsuke = (function () {
       stopScanning();
       form.hidden = true;
       if (!state.runtimeReady || !state.eventLoaded) msg.textContent = "読み込み中…";
-      else if (!state.db) msg.textContent = "共有DBに接続できません。claude.ai にサインインし、この Artifact を共有された状態で開いてください。";
+      else if (!state.db) msg.textContent = state.runtimeKind === "web"
+        ? "共有DBに接続できません。幹事タブの「共有設定」でスプレッドシートのURLを設定してください。"
+        : "共有DBに接続できません。claude.ai にサインインし、この Artifact を共有された状態で開いてください。";
       else if (!state.event || !state.rosterDoc) msg.textContent = "幹事が名簿を登録するまでお待ちください。";
       else if (state.keyStatus === "checking") msg.textContent = "パスフレーズを確認中…";
       else {

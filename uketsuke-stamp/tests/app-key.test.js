@@ -76,6 +76,29 @@ test("loadRoster: 復号が終わる前に forgetKey が呼ばれたら、後か
   assert.equal(App.state.roster, null);
 });
 
+test("adoptKey: 進行中の古い applyKey(端末に残っていた前イベントのパスフレーズ)が後から bad で上書きしない", async () => {
+  const saltOld = Core.randomSaltB64();
+  const keyOld = await Core.deriveKey("old-event-pass", saltOld);
+  const checkOld = await Core.makeCheck(keyOld);
+
+  const saltNew = Core.randomSaltB64();
+  const keyNew = await Core.deriveKey("new-event-pass", saltNew);
+
+  // 端末には前イベントのパスフレーズが残っている想定で、まずそれが古いイベントに対して検証中
+  App.state.event = { salt: saltOld, check: checkOld };
+  const stalePromise = App.applyKey("stale-pass-that-does-not-match-old-event");
+
+  // その最中に、新しいイベントの作成でパスフレーズが即採用される
+  // (GasDb のように書込完了通知が同期的に届く実装だとこの順序で競合しうる)
+  App.state.event = { salt: saltNew, check: await Core.makeCheck(keyNew) };
+  App.adoptKey("new-event-pass", keyNew, saltNew);
+
+  await stalePromise;
+  assert.equal(App.state.keyStatus, "ok");
+  assert.equal(App.state.keySalt, saltNew);
+  assert.equal(App.storageGet(App.KEYS.pass), "new-event-pass");
+});
+
 test("loadRoster: 復号中に新しい名簿スナップショットが届いたら、古い結果で上書きしない", async () => {
   const salt = Core.randomSaltB64();
   const key = await Core.deriveKey("pw", salt);
