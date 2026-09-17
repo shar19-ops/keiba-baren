@@ -120,28 +120,30 @@ App.tabs.uketsuke = (function () {
     if (scanning || starting) return;
     wantScan = true;
     starting = true;
-    var s;
     try {
-      s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    } catch (e) {
-      starting = false;
-      App.toast("カメラを起動できませんでした。ブラウザの権限設定をご確認ください。");
-      return;
+      var s;
+      try {
+        s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      } catch (e) {
+        App.toast("カメラを起動できませんでした。ブラウザの権限設定をご確認ください。");
+        return;
+      }
+      if (!wantScan || $("uketsukeMain").hidden || scanning) {
+        // 待っている間に停止 / 画面が閉じた / 既に別のストリームが動いている: 今取得した分は捨てる
+        s.getTracks().forEach(function (t) { t.stop(); });
+        return;
+      }
+      stream = s;
+      video.srcObject = stream;
+      await video.play();
+      if (!wantScan) return; // play() 中に停止された(stopScanning がストリームを止めている)
+      scanning = true;
+      $("scanToggleBtn").textContent = "スキャン停止";
+      $("idleMsg").style.display = "none";
+      requestAnimationFrame(tick);
+    } finally {
+      starting = false; // 起動処理が完全に終わるまで二重起動を防ぐ
     }
-    starting = false;
-    if (!wantScan || $("uketsukeMain").hidden || scanning) {
-      // 待っている間に停止 / 画面が閉じた / 既に別のストリームが動いている: 今取得した分は捨てる
-      s.getTracks().forEach(function (t) { t.stop(); });
-      return;
-    }
-    stream = s;
-    video.srcObject = stream;
-    await video.play();
-    if (!wantScan) return; // play() 中に停止された(stopScanning がストリームを止めている)
-    scanning = true;
-    $("scanToggleBtn").textContent = "スキャン停止";
-    $("idleMsg").style.display = "none";
-    requestAnimationFrame(tick);
   }
 
   function tick() {
