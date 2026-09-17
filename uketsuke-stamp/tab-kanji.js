@@ -7,6 +7,48 @@ App.tabs.kanji = (function () {
   var saving = false;
   var NL = String.fromCharCode(10);
 
+  // ---------- QR発行: 部署選択(名簿が変わったら選択状態を作り直す) ----------
+  var selectedDepts = null;          // sheetName -> true/false
+  var selectedDeptsRosterRef = null; // どの roster に対する選択状態か
+
+  function departmentsOf(roster) {
+    var counts = {};
+    roster.people.forEach(function (p) { counts[p.sheetName] = (counts[p.sheetName] || 0) + 1; });
+    return (roster.sheets || []).slice()
+      .sort(function (a, b) { return (a.deptOrder - b.deptOrder) || ((a.sheetIndex || 0) - (b.sheetIndex || 0)); })
+      .map(function (s) { return { sheetName: s.sheetName, count: counts[s.sheetName] || 0 }; });
+  }
+
+  // 名簿(roster)の参照が変わった時だけ選択状態と一覧DOMを作り直す。
+  // render() のたびに毎回作り直すと、4秒ごとの自動更新でチェックボックスの
+  // 一覧が再描画され、選択中にスクロール位置が戻ってしまうため。
+  function renderDeptPicker(roster) {
+    if (selectedDeptsRosterRef === roster) return;
+    selectedDeptsRosterRef = roster;
+    selectedDepts = {};
+    var list = $("qrDeptList");
+    App.clear(list);
+    departmentsOf(roster).forEach(function (d) {
+      selectedDepts[d.sheetName] = true;
+      var cb = App.el("input", { type: "checkbox" });
+      cb.checked = true;
+      cb.addEventListener("change", function () { selectedDepts[d.sheetName] = cb.checked; App.emit(); });
+      list.appendChild(App.el("label", {}, [cb, App.el("span", { text: d.sheetName + "(" + d.count + "名)" })]));
+    });
+  }
+
+  function selectedDeptCount() {
+    if (!selectedDepts) return 0;
+    return Object.keys(selectedDepts).filter(function (k) { return selectedDepts[k]; }).length;
+  }
+
+  function setAllDepts(value) {
+    if (!selectedDepts) return;
+    Object.keys(selectedDepts).forEach(function (k) { selectedDepts[k] = value; });
+    Array.prototype.forEach.call($("qrDeptList").querySelectorAll("input[type=checkbox]"), function (cb) { cb.checked = value; });
+    App.emit();
+  }
+
   function init() {
     ["evTitle", "evDate", "evVenue"].forEach(function (id) {
       $(id).addEventListener("input", function () { $(id).dataset.dirty = "1"; });
@@ -20,6 +62,8 @@ App.tabs.kanji = (function () {
     $("exportCsvBtn").addEventListener("click", exportCsv);
     $("exportXlsxBtn").addEventListener("click", exportXlsx);
     $("resetBtn").addEventListener("click", resetEvent);
+    $("qrDeptAllBtn").addEventListener("click", function () { setAllDepts(true); });
+    $("qrDeptNoneBtn").addEventListener("click", function () { setAllDepts(false); });
   }
 
   // ---------- 表示 ----------
@@ -51,7 +95,8 @@ App.tabs.kanji = (function () {
     var canSave = !!parsed && !!state.db && !saving && (hasEvent ? state.keyStatus === "ok" : true);
     $("saveRosterBtn").disabled = !canSave;
     var hasRoster = !!state.roster;
-    $("genQrBtn").disabled = !hasRoster;
+    if (hasRoster) renderDeptPicker(state.roster);
+    $("genQrBtn").disabled = !hasRoster || selectedDeptCount() === 0;
     $("exportCsvBtn").disabled = !hasRoster;
     $("exportXlsxBtn").disabled = !hasRoster;
     $("resetBtn").disabled = !state.db || !hasEvent;
@@ -179,22 +224,35 @@ App.tabs.kanji = (function () {
     App.toast("名簿を保存しました(" + people.length + " 名)");
   }
 
-  // ---------- QR 発行 ----------
+  // ---------- QR 発行(部署ごとに区切って表示) ----------
   function generateQr() {
     var roster = App.state.roster;
-    if (!roster) return;
+    if (!roster || !selectedDepts) return;
     var target = document.querySelector("input[name=qrTarget]:checked").value;
-    var people = Core.sortPeople(roster.people).filter(function (p) { return target === "all" || p.plan === "yes"; });
+    var people = Core.sortPeople(roster.people).filter(function (p) {
+      return (target === "all" || p.plan === "yes") && selectedDepts[p.sheetName];
+    });
     var grid = $("qrGrid");
     App.clear(grid);
+    var currentSheet = null;
+    var innerGrid = null;
     people.forEach(function (p) {
+      if (p.sheetName !== currentSheet) {
+        currentSheet = p.sheetName;
+        var group = App.el("div", { class: "qr-dept-group" }, [
+          App.el("h3", { class: "qr-dept-title", text: p.sheetName })
+        ]);
+        innerGrid = App.el("div", { class: "qr-grid" });
+        group.appendChild(innerGrid);
+        grid.appendChild(group);
+      }
       var box = App.el("div", { class: "qr-box" });
       var tag = App.el("div", { class: "qr-tag" }, [
         box,
         App.el("div", { class: "tag-name", text: p.name }),
         App.el("div", { class: "tag-dept", text: p.dept + (p.title ? "　" + p.title : "") })
       ]);
-      grid.appendChild(tag);
+      innerGrid.appendChild(tag);
       try {
         new QRCode(box, { text: "RS2:" + p.id, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M });
       } catch (e) {
@@ -203,7 +261,7 @@ App.tabs.kanji = (function () {
     });
     $("printBtn").hidden = people.length === 0;
     $("printHint").hidden = people.length === 0;
-    App.toast(people.length + " 件のQRコードを生成しました");
+    App.toast(people.length + " 件のQRコードを生成しました(" + selectedDeptCount() + " 部署)");
   }
 
   // ---------- QR カードの印刷用 HTML ----------
@@ -225,21 +283,32 @@ App.tabs.kanji = (function () {
   }
 
   function buildPrintHtml() {
-    var tags = Array.prototype.slice.call($("qrGrid").querySelectorAll(".qr-tag"));
-    var cards = tags.map(function (tag) {
+    var groups = Array.prototype.slice.call($("qrGrid").querySelectorAll(".qr-dept-group")).map(function (group) {
+      var tags = Array.prototype.slice.call(group.querySelectorAll(".qr-tag"));
       return {
-        src: qrDataUrl(tag.querySelector(".qr-box")),
-        name: tag.querySelector(".tag-name").textContent,
-        dept: tag.querySelector(".tag-dept").textContent
+        title: group.querySelector(".qr-dept-title").textContent,
+        cards: tags.map(function (tag) {
+          return {
+            src: qrDataUrl(tag.querySelector(".qr-box")),
+            name: tag.querySelector(".tag-name").textContent,
+            dept: tag.querySelector(".tag-dept").textContent
+          };
+        })
       };
     });
     var title = eventInfo().title || "受付スタンプ";
-    var body = cards.map(function (c) {
-      return '<div class="card">' +
-        '<img src="' + escapeHtml(c.src) + '" alt="QR">' +
-        '<div class="name">' + escapeHtml(c.name) + '</div>' +
-        '<div class="dept">' + escapeHtml(c.dept) + '</div>' +
-        '</div>';
+    var body = groups.map(function (g) {
+      var cardsHtml = g.cards.map(function (c) {
+        return '<div class="card">' +
+          '<img src="' + escapeHtml(c.src) + '" alt="QR">' +
+          '<div class="name">' + escapeHtml(c.name) + '</div>' +
+          '<div class="dept">' + escapeHtml(c.dept) + '</div>' +
+          '</div>';
+      }).join(NL);
+      return '<div class="dept-group">' +
+        '<div class="dept-title">' + escapeHtml(g.title) + "(" + g.cards.length + "名)</div>" +
+        '<div class="grid">' + cardsHtml + "</div>" +
+        "</div>";
     }).join(NL);
     return [
       "<!DOCTYPE html>",
@@ -250,6 +319,8 @@ App.tabs.kanji = (function () {
       "<style>",
       "@page { margin: 10mm; }",
       'body { font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; margin: 0; padding: 10mm; background: #ffffff; color: #202A3B; }',
+      ".dept-group { margin-bottom: 16px; }",
+      ".dept-title { font-size: 13px; font-weight: 700; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid #DEDBD1; break-after: avoid; }",
       ".grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }",
       ".card { border: 1px dashed #DEDBD1; border-radius: 6px; padding: 10px; text-align: center; break-inside: avoid; }",
       ".card img { width: 120px; height: 120px; }",
@@ -258,7 +329,7 @@ App.tabs.kanji = (function () {
       "</style>",
       "</head>",
       "<body>",
-      '<div class="grid">' + body + "</div>",
+      body,
       "</body>",
       "</html>"
     ].join(NL);

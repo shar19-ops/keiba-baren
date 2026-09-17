@@ -84,7 +84,15 @@
   .table-wrap { overflow-x: auto; }
   ul.warnings { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--warn); }
 
-  .qr-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 16px; }
+  .qr-dept-picker { margin-top: 10px; }
+  .qr-dept-picker-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
+  .btn-link { background: none; border: none; color: var(--accent); text-decoration: underline; font-family: var(--font); font-size: 12px; cursor: pointer; padding: 0; }
+  .qr-dept-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-s); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .qr-dept-list label { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .qr-dept-group { margin-top: 18px; }
+  .qr-dept-group:first-child { margin-top: 16px; }
+  .qr-dept-title { font-size: 13px; font-weight: 700; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+  .qr-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .qr-tag { border: 1px dashed var(--border); border-radius: var(--radius-s); padding: 10px; text-align: center; break-inside: avoid; }
   .qr-tag .qr-box { display: flex; justify-content: center; margin-bottom: 6px; }
   .qr-tag .tag-name { font-size: 14px; font-weight: 700; }
@@ -169,7 +177,7 @@
     #panel-kanji { display: block !important; }
     #panel-kanji section.card { display: none; border: none; padding: 0; }
     #panel-kanji section.card.qr-card { display: block; }
-    #panel-kanji section.card.qr-card > :not(.qr-grid) { display: none; }
+    #panel-kanji section.card.qr-card > :not(#qrGrid) { display: none; }
     .qr-grid { grid-template-columns: repeat(3, 1fr); }
   }
 </style>
@@ -254,6 +262,13 @@
       <div class="radio-row">
         <label><input type="radio" name="qrTarget" value="yes" checked> 予定〇の人のみ</label>
         <label><input type="radio" name="qrTarget" value="all"> 全員</label>
+      </div>
+      <div class="qr-dept-picker no-print">
+        <div class="qr-dept-picker-head">
+          <span>発行する部署</span>
+          <span><button type="button" class="btn-link" id="qrDeptAllBtn">全て選択</button> / <button type="button" class="btn-link" id="qrDeptNoneBtn">全て解除</button></span>
+        </div>
+        <div class="qr-dept-list" id="qrDeptList"></div>
       </div>
       <div class="btn-row">
         <button class="btn primary" id="genQrBtn">QRを生成</button>
