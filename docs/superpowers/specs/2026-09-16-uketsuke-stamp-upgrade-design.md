@@ -225,6 +225,10 @@ uketsuke-stamp/
   - `jsQR` 1.4.0(`https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js`。cdnjs に無いため jsdelivr)— QR 読み取り
 - Artifact は `index.html` + `core.js` + `sync.js` + `app.js` の複数ファイル公開。URL は現行のものを維持(`url` 指定で更新)
 
+### 確認ダイアログ(実装時の追加、2026-09-17)
+
+Artifact は sandbox 付き iframe で表示され、`window.confirm` / `window.prompt` が動作しない(常に false / null)ことを公開後に確認した。受付の確認、取消、パスフレーズ忘却、名簿の上書き確認、イベントリセット(「削除」入力必須)は、すべて `App.ask({ title, message, okLabel, danger, requireText })` による自前のページ内ダイアログで行う。
+
 ## 10. エラー処理
 
 | 状況 | 挙動 |
