@@ -7,9 +7,9 @@ App.tabs.kanji = (function () {
   var saving = false;
   var NL = String.fromCharCode(10);
 
-  // ---------- QR発行: 部署選択(名簿が変わったら選択状態を作り直す) ----------
-  var selectedDepts = null;          // sheetName -> true/false
-  var selectedDeptsRosterRef = null; // どの roster に対する選択状態か
+  // ---------- QR発行: 部署選択(名簿が本当に更新された時だけ選択状態を作り直す) ----------
+  var selectedDepts = null;            // sheetName -> true/false
+  var selectedDeptsVersion = null;     // どの版(rosterDoc.version)に対する選択状態か
 
   function departmentsOf(roster) {
     var counts = {};
@@ -19,16 +19,17 @@ App.tabs.kanji = (function () {
       .map(function (s) { return { sheetName: s.sheetName, count: counts[s.sheetName] || 0 }; });
   }
 
-  // 名簿(roster)の参照が変わった時だけ選択状態と一覧DOMを作り直す。
-  // render() のたびに毎回作り直すと、4秒ごとの自動更新でチェックボックスの
-  // 一覧が再描画され、選択中にスクロール位置が戻ってしまうため。
-  function renderDeptPicker(roster) {
-    if (selectedDeptsRosterRef === roster) return;
-    selectedDeptsRosterRef = roster;
+  // state.roster は4秒ごとの自動更新のたびに復号し直されて毎回新しいオブジェクトに
+  // なる(中身が同じでも参照は変わる)ため、オブジェクト参照ではなく rosterDoc.version
+  // (実際に保存し直した時だけ増える番号)が変わった時だけ選択状態と一覧DOMを作り直す。
+  function renderDeptPicker(state) {
+    var version = state.rosterDoc && state.rosterDoc.version;
+    if (selectedDeptsVersion === version) return;
+    selectedDeptsVersion = version;
     selectedDepts = {};
     var list = $("qrDeptList");
     App.clear(list);
-    departmentsOf(roster).forEach(function (d) {
+    departmentsOf(state.roster).forEach(function (d) {
       selectedDepts[d.sheetName] = true;
       var cb = App.el("input", { type: "checkbox" });
       cb.checked = true;
@@ -95,7 +96,7 @@ App.tabs.kanji = (function () {
     var canSave = !!parsed && !!state.db && !saving && (hasEvent ? state.keyStatus === "ok" : true);
     $("saveRosterBtn").disabled = !canSave;
     var hasRoster = !!state.roster;
-    if (hasRoster) renderDeptPicker(state.roster);
+    if (hasRoster) renderDeptPicker(state);
     $("genQrBtn").disabled = !hasRoster || selectedDeptCount() === 0;
     $("exportCsvBtn").disabled = !hasRoster;
     $("exportXlsxBtn").disabled = !hasRoster;
@@ -385,6 +386,9 @@ App.tabs.kanji = (function () {
     $("xlsxFile").value = "";
     $("importPreview").hidden = true;
     App.clear($("qrGrid"));
+    App.clear($("qrDeptList"));
+    selectedDepts = null;
+    selectedDeptsVersion = null;
     $("printBtn").hidden = true;
     ["evTitle", "evDate", "evVenue"].forEach(function (id) { $(id).value = ""; delete $(id).dataset.dirty; });
     App.forgetKey();
