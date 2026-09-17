@@ -130,6 +130,42 @@ test("購読エラーは失敗が続く間は1回だけ通知され、復帰し�
   assert.equal(errors, 2); // 復帰後にまた失敗したら再通知される
 });
 
+test("保存前に飛んだ GET が保存後に届いても、新しい保存結果を古い状態で上書きしない", async () => {
+  const backend = new FakeBackend();
+  // 「保存前」の GET だけ手動で解決タイミングを制御できるようにする
+  let releaseStaleGet = null;
+  const staleGetGate = new Promise((resolve) => { releaseStaleGet = resolve; });
+  let getCount = 0;
+  const db = makeDb(backend, {
+    fetch: (url, init) => {
+      if (!init) {
+        getCount++;
+        if (getCount === 1) {
+          // 1回目の GET はサーバーに「送信した瞬間」の状態(まだ roster:null)を捕まえておき、
+          // 応答が返ってくるのは保存が終わった後、というタイミングを再現する
+          const snapshotAtDispatch = backend.state();
+          return staleGetGate.then(() => ({ ok: true, json: () => Promise.resolve(snapshotAtDispatch) }));
+        }
+      }
+      return backend.fetch(url, init);
+    }
+  });
+
+  let rosterSnap = null;
+  db.doc("roster/current").onSnapshot((s) => { rosterSnap = s; });
+
+  const stalePromise = db.refresh(); // 保存前の GET を送信(まだ応答は来ない)
+  await db.doc("roster/current").set({ version: 1, count: 1 }); // 保存(この応答が先に届く)
+  assert.equal(rosterSnap.data().version, 1);
+
+  releaseStaleGet(); // 保存前の GET(中身は roster:null のまま)がここでようやく届く
+  await stalePromise;
+
+  // 古い GET の「名簿なし」で、保存直後の状態を巻き戻していないこと
+  assert.equal(rosterSnap.exists, true);
+  assert.equal(rosterSnap.data().version, 1);
+});
+
 test("onSnapshot の解除後は通知が来ない", async () => {
   const backend = new FakeBackend();
   const db = makeDb(backend);

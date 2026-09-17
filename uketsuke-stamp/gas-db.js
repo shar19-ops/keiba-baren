@@ -26,6 +26,8 @@
     this._pollOk = null; // null: 未実施, true/false: 直近の結果
     this._timer = null;
     this._inflight = null;
+    this._seq = 0;       // 送信順の通し番号(古い応答が新しい応答を追い越して上書きしないためのガード)
+    this._appliedSeq = 0;
   }
 
   GasDb.prototype.start = function () {
@@ -42,16 +44,26 @@
     this._docData["event/current"] = data.event || null;
     this._docData["roster/current"] = data.roster || null;
     this._checkins = data.checkins || {};
-    this._pollOk = true;
     var self = this;
     DOC_PATHS.forEach(function (p) { self._notifyDoc(p); });
     COLLECTIONS.forEach(function (c) { self._notifyCol(c); });
+  };
+
+  // seq より新しい(大きい)応答が既に反映済みなら、この応答は無視する。
+  // GET(定期更新)と POST(書込)は別々に飛ぶので、書込前に飛んだ GET が
+  // 書込の応答より後に届くと、せっかく保存した内容を古い状態で上書きしてしまう。
+  // 送信した順に番号を振り、より新しい送信の結果だけを採用することでこれを防ぐ。
+  GasDb.prototype._maybeApply = function (seq, data) {
+    if (seq <= this._appliedSeq) return;
+    this._appliedSeq = seq;
+    this._applyState(data);
   };
 
   GasDb.prototype.refresh = function () {
     if (this._inflight) return this._inflight;
     var self = this;
     if (!this.fetchImpl) return Promise.reject(new Error("fetch が使えません"));
+    var seq = ++this._seq;
     var sep = this.url.indexOf("?") >= 0 ? "&" : "?";
     this._inflight = this.fetchImpl(this.url + sep + "action=state")
       .then(function (res) {
@@ -60,7 +72,8 @@
       })
       .then(function (data) {
         self._inflight = null;
-        self._applyState(data);
+        self._pollOk = true;
+        self._maybeApply(seq, data);
       })
       .catch(function (e) {
         self._inflight = null;
@@ -81,6 +94,7 @@
   GasDb.prototype._post = function (body) {
     var self = this;
     if (!this.fetchImpl) return Promise.reject(errorOf(new Error("fetch が使えません")));
+    var seq = ++this._seq;
     return this.fetchImpl(this.url, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -89,7 +103,8 @@
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
     }).then(function (data) {
-      self._applyState(data);
+      self._pollOk = true;
+      self._maybeApply(seq, data);
     }).catch(function (e) {
       throw errorOf(e);
     });
