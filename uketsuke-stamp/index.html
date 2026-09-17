@@ -311,7 +311,35 @@
   </div>
 
   <!-- ===== 状況タブ(Task 11 で中身を追加) ===== -->
-  <div class="panel" id="panel-status"></div>
+  <div class="panel" id="panel-status">
+    <section class="card gate" id="statusGate">
+      <p id="statusGateMsg">読み込み中…</p>
+    </section>
+
+    <div id="statusMain" hidden>
+      <section class="card">
+        <div class="tiles">
+          <div class="tile accent"><div class="num" id="tChecked">0</div><div class="lbl">受付済</div></div>
+          <div class="tile"><div class="num" id="tPlan">0</div><div class="lbl">予定〇</div></div>
+          <div class="tile"><div class="num" id="tMissing">0</div><div class="lbl">未受付</div></div>
+          <div class="tile"><div class="num" id="tUnexpected">0</div><div class="lbl">予定外出席</div></div>
+        </div>
+        <p class="hint" id="statusUpdated"></p>
+      </section>
+
+      <section class="card">
+        <h2>部署別</h2>
+        <p class="card-desc">行をタップすると未受付の人が表示されます。</p>
+        <div class="table-wrap"><table class="simple" id="deptTable"></table></div>
+      </section>
+
+      <section class="card">
+        <h2>受付履歴(全端末)</h2>
+        <ul class="checkin-list" id="allHistory"></ul>
+        <div class="empty-note" id="allHistoryEmpty">まだ受付記録がありません。</div>
+      </section>
+    </div>
+  </div>
 </main>
 
 <div class="toast" id="toast"></div>
