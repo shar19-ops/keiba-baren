@@ -103,7 +103,9 @@ App.tabs.uketsuke = (function () {
   }
 
   // ---------- カメラ ----------
+  var wantScan = false;
   function stopScanning() {
+    wantScan = false;
     scanning = false;
     $("scanToggleBtn").textContent = "スキャン開始";
     $("idleMsg").style.display = "flex";
@@ -116,6 +118,7 @@ App.tabs.uketsuke = (function () {
   var starting = false;
   async function startScanning() {
     if (scanning || starting) return;
+    wantScan = true;
     starting = true;
     var s;
     try {
@@ -126,8 +129,8 @@ App.tabs.uketsuke = (function () {
       return;
     }
     starting = false;
-    if ($("uketsukeMain").hidden || scanning) {
-      // 待っている間に画面が閉じた / 既に別のストリームが動いている: 今取得した分は捨てる
+    if (!wantScan || $("uketsukeMain").hidden || scanning) {
+      // 待っている間に停止 / 画面が閉じた / 既に別のストリームが動いている: 今取得した分は捨てる
       s.getTracks().forEach(function (t) { t.stop(); });
       return;
     }
