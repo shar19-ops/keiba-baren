@@ -137,6 +137,7 @@ App.tabs.uketsuke = (function () {
     stream = s;
     video.srcObject = stream;
     await video.play();
+    if (!wantScan) return; // play() 中に停止された(stopScanning がストリームを止めている)
     scanning = true;
     $("scanToggleBtn").textContent = "スキャン停止";
     $("idleMsg").style.display = "none";
