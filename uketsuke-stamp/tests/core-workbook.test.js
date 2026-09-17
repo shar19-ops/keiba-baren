@@ -107,3 +107,23 @@ test("parseWorkbook: 部署シートが無ければ例外", () => {
   const wb = makeWorkbook([{ name: "原本", aoa: [["x"]] }]);
   assert.throws(() => Core.parseWorkbook(wb, XLSX), /部署シート/);
 });
+
+test("parseWorkbook + sortPeople/buildExportSheets: 先頭番号が同じシートが複数あっても部署ごとに固まる(sheetIndex)", () => {
+  const a = deptSheetAoa([{ name: "甲　太郎", plan: "〇" }, { name: "甲　次郎", plan: "×" }]);
+  const b = deptSheetAoa([{ name: "乙　太郎", plan: "〇" }, { name: "乙　次郎", plan: "×" }]);
+  const wb = makeWorkbook([
+    { name: "05 甲部", aoa: a.aoa },
+    { name: "05 乙部", aoa: b.aoa },
+  ]);
+  const r = Core.parseWorkbook(wb, XLSX);
+  assert.ok(r.people.every((p) => typeof p.sheetIndex === "number"), "people に sheetIndex が無い");
+  assert.ok(r.sheets.every((s) => typeof s.sheetIndex === "number"), "sheets に sheetIndex が無い");
+
+  const sorted = Core.sortPeople(r.people);
+  assert.deepEqual(sorted.map((p) => [p.sheetName, p.row]), [
+    ["05 甲部", 5], ["05 甲部", 6], ["05 乙部", 5], ["05 乙部", 6],
+  ]);
+
+  const exportSheets = Core.buildExportSheets({ people: r.people, sheets: r.sheets }, [], { title: "", dateText: "", venue: "" });
+  assert.deepEqual(exportSheets.slice(0, 2).map((s) => s.name), ["05 甲部", "05 乙部"]);
+});

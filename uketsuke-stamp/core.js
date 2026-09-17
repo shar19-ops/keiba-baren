@@ -82,7 +82,7 @@
   function parseWorkbook(wb, XLSX) {
     var result = { event: { title: "", dateText: "", venue: "" }, sheets: [], people: [], warnings: [] };
     var eventTaken = false;
-    wb.SheetNames.forEach(function (sheetName) {
+    wb.SheetNames.forEach(function (sheetName, sheetIndex) {
       var parsed = parseSheetName(sheetName);
       if (!parsed) return;
       var ws = wb.Sheets[sheetName];
@@ -124,6 +124,7 @@
           deptOrder: parsed.deptOrder,
           dept: parsed.dept,
           sheetName: sheetName,
+          sheetIndex: sheetIndex,
           row: r + 1,
           name: name,
           title: cellText(row[header.titleCol]),
@@ -136,6 +137,7 @@
         sheetName: sheetName,
         deptOrder: parsed.deptOrder,
         dept: parsed.dept,
+        sheetIndex: sheetIndex,
         headerRow: header.headerRow + 1,
         nameCol: colLetter(header.nameCol),
         titleCol: colLetter(header.titleCol),
@@ -222,7 +224,7 @@
 
   function sortPeople(people) {
     return people.slice().sort(function (a, b) {
-      return (a.deptOrder - b.deptOrder) || (a.row - b.row);
+      return (a.deptOrder - b.deptOrder) || ((a.sheetIndex || 0) - (b.sheetIndex || 0)) || (a.row - b.row);
     });
   }
 
@@ -373,7 +375,9 @@
   function buildExportSheets(roster, checkins, event) {
     var checked = {};
     (checkins || []).forEach(function (c) { checked[c.pid] = c; });
-    var sheets = (roster.sheets || []).slice().sort(function (a, b) { return a.deptOrder - b.deptOrder; });
+    var sheets = (roster.sheets || []).slice().sort(function (a, b) {
+      return (a.deptOrder - b.deptOrder) || ((a.sheetIndex || 0) - (b.sheetIndex || 0));
+    });
     var people = sortPeople(roster.people || []);
     var out = [];
 
