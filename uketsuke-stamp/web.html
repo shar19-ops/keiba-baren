@@ -204,6 +204,17 @@
 <main>
   <!-- 幹事タブ -->
   <div class="panel" id="panel-kanji">
+    <section class="card no-print" id="orgGate">
+      <h2>幹事用パスワード</h2>
+      <p class="card-desc">受付担当の端末で誤って共有設定などを変更しないよう、簡易パスワードで保護しています。</p>
+      <div class="field-row">
+        <input type="password" id="orgGatePass" placeholder="パスワード" autocomplete="current-password">
+        <button class="btn primary small" id="orgGateBtn">解除</button>
+      </div>
+      <p class="status-line bad" id="orgGateMsg" hidden>パスワードが違います</p>
+    </section>
+
+    <div id="orgContent" hidden>
     <section class="card" id="gasSetupCard">
       <h2>共有設定(Google スプレッドシート)</h2>
       <p class="card-desc">このアプリはデータを Google スプレッドシートに保存します。まだ設定していない場合は、先に <code>gas-backend.gs</code> の手順でスプレッドシートを用意し、発行された URL(<code>.../exec</code>)を下に貼り付けてください。</p>
@@ -297,6 +308,7 @@
         <button class="btn ghost" id="resetBtn">すべて削除して新しいイベントを開始</button>
       </div>
     </section>
+    </div>
   </div>
 
   <!-- 受付タブ -->
@@ -436,6 +448,31 @@
     history.replaceState({}, "", location.origin + location.pathname);
   }
   var savedUrl = localStorage.getItem(URL_KEY) || "";
+
+  // 幹事タブの簡易パスワード保護(受付担当が誤って共有設定などを変更しないため。
+  // 本格的なアクセス制御ではなく、ブラウザを閉じるまで有効な簡易ロック)
+  var ORG_PASSWORD = "shukketsu";
+  var ORG_UNLOCK_KEY = "uketsuke_org_unlocked_v1";
+  function isOrgUnlocked() {
+    try { return sessionStorage.getItem(ORG_UNLOCK_KEY) === "1"; } catch (e) { return false; }
+  }
+  function showOrgContent(unlocked) {
+    $("orgGate").hidden = unlocked;
+    $("orgContent").hidden = !unlocked;
+  }
+  function tryOrgUnlock() {
+    if ($("orgGatePass").value === ORG_PASSWORD) {
+      try { sessionStorage.setItem(ORG_UNLOCK_KEY, "1"); } catch (e) {}
+      $("orgGatePass").value = "";
+      $("orgGateMsg").hidden = true;
+      showOrgContent(true);
+    } else {
+      $("orgGateMsg").hidden = false;
+    }
+  }
+  $("orgGateBtn").addEventListener("click", tryOrgUnlock);
+  $("orgGatePass").addEventListener("keydown", function (e) { if (e.key === "Enter") tryOrgUnlock(); });
+  showOrgContent(isOrgUnlocked());
 
   function shortUrl(u) {
     return u.length > 46 ? u.slice(0, 30) + "…" + u.slice(-12) : u;
