@@ -101,14 +101,35 @@ function jsonOutput(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
+// doGet/doPost は何が起きても必ず jsonOutput(...) を return すること。
+// 例外を投げて関数が異常終了すると、Apps Script は自前のエラーページ(HTML)を
+// 返してしまい、そこには CORS ヘッダー(Access-Control-Allow-Origin)が付かない。
+// その結果、ブラウザから見ると原因不明の「Failed to fetch」になる。
+function safeState(err) {
+  // buildState() 自体が失敗した時の最終手段。実データが読めていないことを
+  // error で示しつつ、event/roster を勝手に null にして端末側を混乱させない
+  // よう、既存データの有無に関わらず「不明」を表すため空を返す。
+  return { event: null, roster: null, checkins: {}, error: String(err) };
+}
+
 function doGet(e) {
-  return jsonOutput(buildState());
+  try {
+    return jsonOutput(buildState());
+  } catch (err) {
+    return jsonOutput(safeState(err));
+  }
 }
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  var locked = false;
   try {
+    locked = lock.tryLock(10000);
+    if (!locked) {
+      // ロックが取れなくても、書込みは諦めて現状だけ返す(必ずJSONで応答する)
+      return jsonOutput(buildState());
+    }
+
     var body = {};
     try { body = JSON.parse(e.postData.contents); } catch (err) { body = {}; }
     var action = body.action;
@@ -133,7 +154,15 @@ function doPost(e) {
     }
 
     return jsonOutput(buildState());
+  } catch (err) {
+    // 書込み自体は失敗しても、既存データの読み出し(buildState)はできることが多い。
+    // それも失敗する場合だけ safeState にフォールバックする。
+    try {
+      return jsonOutput(buildState());
+    } catch (err2) {
+      return jsonOutput(safeState(err));
+    }
   } finally {
-    lock.releaseLock();
+    if (locked) lock.releaseLock();
   }
 }
