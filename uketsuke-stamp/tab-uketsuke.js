@@ -20,7 +20,7 @@ App.tabs.uketsuke = (function () {
     dev.value = App.storageGet(App.KEYS.device) || "";
     dev.addEventListener("input", function () { App.storageSet(App.KEYS.device, dev.value); App.emit(); });
 
-    $("scanToggleBtn").addEventListener("click", function () { if (scanning) stopScanning(); else startScanning(); });
+    $("scanToggleBtn").addEventListener("click", function () { if (scanning) stopScanning(); else if (!starting) startScanning(); });
     $("searchInput").addEventListener("input", renderSearch);
     $("walkinAddBtn").addEventListener("click", addWalkin);
     $("forgetKeyBtn").addEventListener("click", function () {
@@ -41,6 +41,7 @@ App.tabs.uketsuke = (function () {
     gate.hidden = !!ready;
     main.hidden = !ready;
     if (!ready) {
+      stopScanning();
       form.hidden = true;
       if (!state.runtimeReady || !state.eventLoaded) msg.textContent = "読み込み中…";
       else if (!state.db) msg.textContent = "共有DBに接続できません。claude.ai にサインインし、この Artifact を共有された状態で開いてください。";
@@ -112,13 +113,25 @@ App.tabs.uketsuke = (function () {
     }
   }
 
+  var starting = false;
   async function startScanning() {
+    if (scanning || starting) return;
+    starting = true;
+    var s;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     } catch (e) {
+      starting = false;
       App.toast("カメラを起動できませんでした。ブラウザの権限設定をご確認ください。");
       return;
     }
+    starting = false;
+    if ($("uketsukeMain").hidden || scanning) {
+      // 待っている間に画面が閉じた / 既に別のストリームが動いている: 今取得した分は捨てる
+      s.getTracks().forEach(function (t) { t.stop(); });
+      return;
+    }
+    stream = s;
     video.srcObject = stream;
     await video.play();
     scanning = true;
