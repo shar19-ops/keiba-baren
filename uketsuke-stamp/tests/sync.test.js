@@ -190,3 +190,19 @@ test("flush 中の checkIn を await すると、その書込が終わってか�
   assert.equal(store.pendingCount, 0);
   store.stop();
 });
+
+test("書込失敗時に lastError が入り、次に成功すると消える", async () => {
+  const db = new FakeDb();
+  const { store, timer } = makeStore(db);
+  store.start();
+  await tick();
+  db.failNext = 1;
+  db.failCode = "invalid_argument";
+  await store.checkIn("p1", { t: "a", dev: "受付1", kind: "qr" });
+  assert.equal(store.lastError.code, "invalid_argument");
+  timer.fire();
+  await tick(); await tick();
+  assert.equal(store.pendingCount, 0);
+  assert.equal(store.lastError, null);
+  store.stop();
+});

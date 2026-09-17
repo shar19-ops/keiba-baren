@@ -22,6 +22,7 @@
     this.flushing = false;
     this.ready = false;
     this.error = null;
+    this.lastError = null;
     this.flushPromise = null;
   }
 
@@ -118,10 +119,12 @@
         try {
           if (op.op === "set") await ref.set(op.data); else await ref.delete();
         } catch (e) {
+          this.lastError = e;
           this.timer = this.setTimer(function () { self.timer = null; self.flush(); }, this.retryMs);
           this._emit();
           return;
         }
+        this.lastError = null;
         this.pending = this.pending.filter(function (p) { return p !== op; });
         this._savePending();
         this._emit();

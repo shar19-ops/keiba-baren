@@ -25,6 +25,8 @@ window.App = (function () {
   var currentTab = null;
   var keyGen = 0;   // 鍵が変わる(取得・忘却)たびに +1。古い非同期処理の結果を捨てる目印
   var applySeq = 0; // applyKey の呼び出し順。古い呼び出しの結果を捨てる
+  var storeErrorToasted = false;  // store.error が非 null の間、再購読エラーの通知を 1 回だけ出す
+  var lastToastedWriteCode = null; // store.lastError.code が変わるたびに 1 回だけ通知する
 
   // ---------- 端末内保存 ----------
   function storageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -206,6 +208,29 @@ window.App = (function () {
     return "保存に失敗しました" + (e && e.message ? ": " + e.message : "");
   }
 
+  // checkins 購読の切断・書込失敗をトースト通知する(再送のたびに繰り返さない)
+  function notifyStoreErrors() {
+    var store = state.store;
+    if (!store) return;
+    if (store.error) {
+      if (!storeErrorToasted) {
+        storeErrorToasted = true;
+        toast("共有DBの購読が切れました(" + store.error.code + ")。ページを再読み込みしてください");
+      }
+    } else {
+      storeErrorToasted = false;
+    }
+    var code = store.lastError && store.lastError.code;
+    if (code && code !== "unavailable" && code !== "resource_exhausted") {
+      if (lastToastedWriteCode !== code) {
+        lastToastedWriteCode = code;
+        toast(writeErrorMessage(store.lastError));
+      }
+    } else {
+      lastToastedWriteCode = null;
+    }
+  }
+
   // ---------- 確認ダイアログ(Artifact の iframe 内では window.confirm / prompt が使えないため自前) ----------
   var dialogState = null;
   // opts: { title, message, okLabel, cancelLabel, danger, requireText }
@@ -315,7 +340,7 @@ window.App = (function () {
       toast("名簿の購読が切れました(" + err.code + ")");
     });
     state.store = new Sync.SyncStore({ db: state.db, storage: window.localStorage });
-    state.store.onChange(function () { decryptWalkins().then(emit); });
+    state.store.onChange(function () { notifyStoreErrors(); decryptWalkins().then(emit); });
     state.store.start();
     emit();
   }

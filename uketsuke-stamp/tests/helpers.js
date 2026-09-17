@@ -65,13 +65,14 @@ class FakeDb {
     this.data = new Map();
     this.listeners = new Set();
     this.failNext = 0;
+    this.failCode = "unavailable";
     this.writes = 0;
   }
   _maybeFail() {
     if (this.failNext > 0) {
       this.failNext--;
-      const e = new Error("unavailable");
-      e.code = "unavailable";
+      const e = new Error(this.failCode);
+      e.code = this.failCode;
       throw e;
     }
   }
