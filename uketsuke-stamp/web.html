@@ -179,6 +179,9 @@
     #panel-kanji section.card.qr-card { display: block; }
     #panel-kanji section.card.qr-card > :not(#qrGrid) { display: none; }
     .qr-grid { grid-template-columns: repeat(3, 1fr); }
+    .qr-dept-group { break-before: page; }
+    .qr-dept-group:first-child { break-before: auto; }
+    .qr-dept-title { break-after: avoid; }
   }
 </style>
 </head>
