@@ -25,14 +25,17 @@
  * シートは初回アクセス時に自動作成されます(Meta / Checkins)。
  */
 
+// Google スプレッドシートは1セルにつき50,000文字までしか入らない。名簿(氏名・部署を
+// 暗号化したもの)は数百名分になると簡単にこれを超える(実測: 308名で約76,000文字)ため、
+// event/roster は1つの値を複数セル(行)に分けて保存する。
+var CHUNK_SIZE = 40000; // 50,000文字の上限に余裕を持たせたサイズ
+
 function ensureSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var meta = ss.getSheetByName('Meta');
   if (!meta) {
     meta = ss.insertSheet('Meta');
     meta.appendRow(['key', 'value']);
-    meta.appendRow(['event', '']);
-    meta.appendRow(['roster', '']);
   }
   var checkins = ss.getSheetByName('Checkins');
   if (!checkins) {
@@ -61,6 +64,32 @@ function setMetaValue(metaSheet, key, value) {
   metaSheet.appendRow([key, value]);
 }
 
+function deleteMetaRow(metaSheet, key) {
+  var data = metaSheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === key) { metaSheet.deleteRow(i + 1); return; }
+  }
+}
+
+// key_n(チャンク数)+ key_0, key_1, ... という複数行に分けて1つの文字列を保存する
+function setChunkedValue(metaSheet, key, str) {
+  var chunks = [];
+  for (var i = 0; i < str.length; i += CHUNK_SIZE) chunks.push(str.slice(i, i + CHUNK_SIZE));
+  if (chunks.length === 0) chunks = [''];
+  var oldCount = Number(getMetaValue(metaSheet, key + '_n')) || 0;
+  for (var c = 0; c < chunks.length; c++) setMetaValue(metaSheet, key + '_' + c, chunks[c]);
+  for (var d = chunks.length; d < oldCount; d++) deleteMetaRow(metaSheet, key + '_' + d);
+  setMetaValue(metaSheet, key + '_n', String(chunks.length));
+}
+
+function getChunkedValue(metaSheet, key) {
+  var n = Number(getMetaValue(metaSheet, key + '_n')) || 0;
+  if (n === 0) return '';
+  var parts = [];
+  for (var i = 0; i < n; i++) parts.push(getMetaValue(metaSheet, key + '_' + i) || '');
+  return parts.join('');
+}
+
 function parseJsonOrNull(raw) {
   if (!raw) return null;
   try { return JSON.parse(raw); } catch (e) { return null; }
@@ -83,8 +112,8 @@ function findRowByFirstCol(sheet, value) {
 
 function buildState() {
   var sh = ensureSheets();
-  var event = parseJsonOrNull(getMetaValue(sh.meta, 'event'));
-  var roster = parseJsonOrNull(getMetaValue(sh.meta, 'roster'));
+  var event = parseJsonOrNull(getChunkedValue(sh.meta, 'event'));
+  var roster = parseJsonOrNull(getChunkedValue(sh.meta, 'roster'));
 
   var rows = sh.checkins.getDataRange().getValues().slice(1)
     .filter(function (r) { return r[0] !== '' && r[0] !== null && r[0] !== undefined; });
@@ -137,10 +166,10 @@ function doPost(e) {
 
     if (action === 'setDoc') {
       var key = pathToMetaKey(body.path);
-      if (key) setMetaValue(sh.meta, key, JSON.stringify(body.data || {}));
+      if (key) setChunkedValue(sh.meta, key, JSON.stringify(body.data || {}));
     } else if (action === 'deleteDoc') {
       var key2 = pathToMetaKey(body.path);
-      if (key2) setMetaValue(sh.meta, key2, '');
+      if (key2) setChunkedValue(sh.meta, key2, '');
     } else if (action === 'colSet' && body.collection === 'checkins') {
       var pid = String(body.id);
       var row = findRowByFirstCol(sh.checkins, pid);
