@@ -150,7 +150,7 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   @media print {
-    :root, :root[data-theme="dark"] {
+    :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
       --bg: #fff; --surface: #fff; --ink: #202A3B; --ink-soft: #626B7C; --ink-faint: #9298A6; --border: #DEDBD1;
     }
     header.app-head, nav.tabs, .no-print { display: none !important; }
