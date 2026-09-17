@@ -5,3 +5,5 @@
 uketsuke-stamp/node_modules/
 
 .playwright-mcp/
+keiba-baren-backup_*.json
+*.url
