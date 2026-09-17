@@ -296,7 +296,7 @@
         <button class="btn" id="printBtn" hidden>印刷用HTMLを保存</button>
       </div>
       <p class="hint" id="printHint" hidden>保存したHTMLをブラウザで開いて印刷してください</p>
-      <div class="qr-grid" id="qrGrid"></div>
+      <div id="qrGrid"></div>
     </section>
 
     <section class="card">
@@ -544,7 +544,7 @@
   });
 
   // 改訂の目印。デプロイ後に「本当に最新が届いているか」を画面で確認できるようにする
-  var APP_VERSION = "2026-09-17.1";
+  var APP_VERSION = "2026-09-17.2";
   $("appVersion").textContent = "受付スタンプ web版 " + APP_VERSION;
 
   // 起動前に URL があれば、boot() が web ランタイムとして認識できるよう先に用意しておく
