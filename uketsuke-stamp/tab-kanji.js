@@ -16,7 +16,7 @@ App.tabs.kanji = (function () {
     $("kanjiUnlockBtn").addEventListener("click", unlock);
     $("kanjiPass").addEventListener("keydown", function (e) { if (e.key === "Enter") unlock(); });
     $("genQrBtn").addEventListener("click", generateQr);
-    $("printBtn").addEventListener("click", function () { window.print(); });
+    $("printBtn").addEventListener("click", printQrCards);
     $("exportCsvBtn").addEventListener("click", exportCsv);
     $("exportXlsxBtn").addEventListener("click", exportXlsx);
     $("resetBtn").addEventListener("click", resetEvent);
@@ -202,7 +202,72 @@ App.tabs.kanji = (function () {
       }
     });
     $("printBtn").hidden = people.length === 0;
+    $("printHint").hidden = people.length === 0;
     App.toast(people.length + " 件のQRコードを生成しました");
+  }
+
+  // ---------- QR カードの印刷用 HTML ----------
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function qrDataUrl(box) {
+    var canvas = box.querySelector("canvas");
+    if (canvas) {
+      try { return canvas.toDataURL("image/png"); } catch (e) { /* fall through */ }
+    }
+    var img = box.querySelector("img");
+    return img ? img.src : "";
+  }
+
+  function buildPrintHtml() {
+    var tags = Array.prototype.slice.call($("qrGrid").querySelectorAll(".qr-tag"));
+    var cards = tags.map(function (tag) {
+      return {
+        src: qrDataUrl(tag.querySelector(".qr-box")),
+        name: tag.querySelector(".tag-name").textContent,
+        dept: tag.querySelector(".tag-dept").textContent
+      };
+    });
+    var title = eventInfo().title || "受付スタンプ";
+    var body = cards.map(function (c) {
+      return '<div class="card">' +
+        '<img src="' + escapeHtml(c.src) + '" alt="QR">' +
+        '<div class="name">' + escapeHtml(c.name) + '</div>' +
+        '<div class="dept">' + escapeHtml(c.dept) + '</div>' +
+        '</div>';
+    }).join(NL);
+    return [
+      "<!DOCTYPE html>",
+      '<html lang="ja">',
+      "<head>",
+      '<meta charset="UTF-8">',
+      "<title>" + escapeHtml(title) + " QRカード</title>",
+      "<style>",
+      "@page { margin: 10mm; }",
+      'body { font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; margin: 0; padding: 10mm; background: #ffffff; color: #202A3B; }',
+      ".grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }",
+      ".card { border: 1px dashed #DEDBD1; border-radius: 6px; padding: 10px; text-align: center; break-inside: avoid; }",
+      ".card img { width: 120px; height: 120px; }",
+      ".card .name { font-size: 14px; font-weight: 700; margin-top: 6px; color: #202A3B; }",
+      ".card .dept { font-size: 11px; color: #626B7C; margin-top: 2px; }",
+      "</style>",
+      "</head>",
+      "<body>",
+      '<div class="grid">' + body + "</div>",
+      "</body>",
+      "</html>"
+    ].join(NL);
+  }
+
+  async function printQrCards() {
+    if (!App.state.downloads) { window.print(); return; }
+    var html = buildPrintHtml();
+    await App.saveFile(Core.exportFilename("QRカード", eventInfo().title, new Date(), "html"), html);
   }
 
   // ---------- 書き出し ----------

@@ -150,6 +150,9 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   @media print {
+    :root, :root[data-theme="dark"] {
+      --bg: #fff; --surface: #fff; --ink: #202A3B; --ink-soft: #626B7C; --ink-faint: #9298A6; --border: #DEDBD1;
+    }
     header.app-head, nav.tabs, .no-print { display: none !important; }
     body { background: #fff; }
     main { max-width: none; margin: 0; padding: 0; }
@@ -224,8 +227,9 @@
       </div>
       <div class="btn-row">
         <button class="btn primary" id="genQrBtn">QRを生成</button>
-        <button class="btn" id="printBtn" hidden>印刷する</button>
+        <button class="btn" id="printBtn" hidden>印刷用HTMLを保存</button>
       </div>
+      <p class="hint" id="printHint" hidden>保存したHTMLをブラウザで開いて印刷してください</p>
       <div class="qr-grid" id="qrGrid"></div>
     </section>
 
