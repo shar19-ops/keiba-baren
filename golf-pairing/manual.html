@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ゴルフ組合せ 簡易取説</title>
+<style>
+  :root {
+    --bg: #f4f6f2;
+    --surface: #ffffff;
+    --text: #1d2a1f;
+    --muted: #5d6b5f;
+    --border: #cfd8cb;
+    --accent: #2f6b3a;
+    --accent-text: #ffffff;
+    --accent-soft: #dcebd9;
+    --warn-bg: #fff4d6;
+    --warn-text: #6b4b00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141a15;
+      --surface: #1d251e;
+      --text: #e5ece4;
+      --muted: #9fae9f;
+      --border: #3a473b;
+      --accent: #6fbf7c;
+      --accent-text: #0f1a11;
+      --accent-soft: #2a3d2d;
+      --warn-bg: #3d3214;
+      --warn-text: #f3d98a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Yu Gothic UI", "Meiryo", "Hiragino Sans", system-ui, sans-serif;
+    font-size: 16px; line-height: 1.75;
+  }
+  header { background: var(--accent); color: var(--accent-text); padding: 20px 16px; }
+  header .inner, main { max-width: 860px; margin: 0 auto; }
+  header h1 { margin: 0; font-size: 24px; }
+  header p { margin: 4px 0 0; opacity: .9; }
+  main { padding: 16px; }
+  .open {
+    display: inline-block; margin-top: 12px; padding: 8px 18px; border-radius: 6px;
+    background: var(--accent-text); color: var(--accent); font-weight: bold; text-decoration: none;
+  }
+  section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; }
+  h2 { font-size: 19px; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; }
+  h2 .no {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-text); font-size: 15px;
+  }
+  h3 { font-size: 16px; margin: 16px 0 4px; }
+  ol, ul { padding-left: 1.4em; margin: 6px 0; }
+  li { margin: 3px 0; }
+  figure { margin: 12px 0 4px; }
+  figure img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 6px; }
+  figcaption { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .note { background: var(--warn-bg); color: var(--warn-text); border-radius: 6px; padding: 8px 12px; margin: 10px 0; font-size: 15px; }
+  .tip { background: var(--accent-soft); border-radius: 6px; padding: 8px 12px; margin: 10px 0; font-size: 15px; }
+  kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-family: inherit; font-size: 14px; background: var(--bg); }
+  b.btn { border: 1px solid var(--border); border-radius: 4px; padding: 0 6px; font-weight: normal; background: var(--bg); white-space: nowrap; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { border-bottom: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { white-space: nowrap; color: var(--muted); font-weight: normal; width: 9em; }
+  a { color: var(--accent); }
+  footer { color: var(--muted); font-size: 13px; text-align: center; padding: 8px 16px 32px; }
+
+  @media print {
+    @page { size: A4 portrait; margin: 12mm; }
+    body { background: #fff; color: #000; font-size: 12pt; }
+    header { background: none; color: #000; border-bottom: 2px solid #000; padding: 0 0 8px; }
+    .open { display: none; }
+    section { border: none; padding: 0; break-inside: avoid-page; }
+    figure { break-inside: avoid; }
+    h2 .no { background: #000; color: #fff; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="inner">
+    <h1>⛳ ゴルフ組合せ　簡易取説</h1>
+    <p>社内ゴルフコンペの組合せを作り、組合せ表（案内状）を印刷するためのアプリです。</p>
+    <a class="open" href="./">アプリを開く →</a>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>はじめに</h2>
+    <ul>
+      <li>パソコンのブラウザ（Edge・Chrome）で使います。インストールやログインは不要です。</li>
+      <li>入力した内容は、<b>使っているパソコンのブラウザの中だけ</b>に自動で保存されます。外部へ送信されることはありません。</li>
+      <li>初めて開いたときは、使い方を確かめられるように<b>ダミーデータ</b>（架空の14人と大会情報）が入っています。</li>
+    </ul>
+    <div class="tip">作業は画面上部の <b>① 参加者 → ② 組合せ → ③ 案内状</b> の順に進めます。</div>
+  </section>
+
+  <section>
+    <h2><span class="no">1</span>参加者を取り込む</h2>
+    <ol>
+      <li>ダミーデータを消すときは、右側の <b class="btn">全員削除</b> を押します。</li>
+      <li>Excel で「氏名」と「HC」の2列を選んでコピー（<kbd>Ctrl</kbd>+<kbd>C</kbd>）します。</li>
+      <li>アプリの枠に貼り付け（<kbd>Ctrl</kbd>+<kbd>V</kbd>）、<b class="btn">置き換えて取り込む</b> を押します。</li>
+    </ol>
+    <ul>
+      <li>HC は空欄でも構いません。1行目が「氏名」「HC」などの見出しなら自動で読み飛ばします。</li>
+      <li>読めない HC や重複した氏名があると、行番号付きでお知らせします。</li>
+      <li>取り込んだ後も、表の中で氏名・HC の修正、<b class="btn">削除</b>、<b class="btn">1人追加</b> ができます。</li>
+    </ul>
+    <figure>
+      <img src="manual-images/players.png" alt="① 参加者タブ。貼り付け枠と参加者一覧の表。" loading="lazy">
+      <figcaption>① 参加者：人数から組数が自動で決まります（例：14人 → 4組）。</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2><span class="no">2</span>組合せを作る</h2>
+    <ol>
+      <li><b>開始時刻・間隔・コース</b>を設定します。コースは「全組 OUT」「全組 IN」「OUT・IN に分ける」から選びます。</li>
+      <li>各組の <b>先頭</b> をプルダウンで選びます（選ばなくても構いません）。</li>
+      <li><b>割振り方式</b>を選び、<b class="btn">自動割振り（再シャッフル）</b> を押します。</li>
+    </ol>
+    <table>
+      <tr><th>HC均等</th><td>各組の HC の平均がそろうように割り振ります（HC が無い人は全体の平均として扱います）。</td></tr>
+      <tr><th>ランダム</th><td>HC に関係なく、ばらばらに割り振ります。</td></tr>
+      <tr><th>HC順</th><td>HC が近い人同士を同じ組にします。</td></tr>
+    </table>
+    <ul>
+      <li>押すたびに別の組合せになります。<b>先頭（👑）と📌固定の人は動きません。</b></li>
+      <li>メンバーを1人クリックし、次に別の組のメンバーをクリックすると<b>入れ替わります</b>。入れ替えた人には自動で📌が付きます。</li>
+      <li>4人組が基本で、端数は3人組になります。「OUT・IN に分ける」では、OUT・IN それぞれの最後の組が3人組です。</li>
+    </ul>
+    <figure>
+      <img src="manual-images/pairing.png" alt="② 組合せタブ。割振り方式・開始時刻の設定と、4つの組のカード。" loading="lazy">
+      <figcaption>② 組合せ：組ごとに HC の合計・平均とスタート時刻が表示されます。</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2><span class="no">3</span>組合せ表（案内状）を作る</h2>
+    <ol>
+      <li>表題・回数・開催日・集合時刻・ゴルフ場・TEL・FAX を入力します（ダミーデータは上書きしてください）。</li>
+      <li>必要に応じて、会費・幹事・連絡事項を入力します。連絡事項は TEL・FAX と組合せ表の間に入ります。</li>
+      <li>下のプレビューを確認し、<b class="btn">印刷 / PDF 保存</b> を押します。</li>
+    </ol>
+    <ul>
+      <li><b>PDF にする</b>：印刷画面のプリンターで「PDF として保存」を選びます。用紙は A4 縦です。</li>
+      <li><b>Word・Excel に貼る</b>：<b class="btn">組合せ表をコピー</b> を押して、Word や Excel に貼り付けます。</li>
+      <li><b>トトカルチョ投票券</b>：「投票券を付ける」にチェックすると、キリトリ線から下に投票欄が付きます。文言と ○—○ の数も変えられます。</li>
+      <li><b>QR コード</b>：<b class="btn">画像を選ぶ</b> で馬券投票アプリなどの QR コード画像を選ぶと、表の右下に載ります（コピーした画像を <kbd>Ctrl</kbd>+<kbd>V</kbd> で貼り付けても可）。</li>
+      <li>「組合せ表に HC を表示」のチェックを外すと、氏名だけの表になります。</li>
+    </ul>
+    <figure>
+      <img src="manual-images/invitation.png" alt="③ 案内状タブ。入力欄と、組合せ表のプレビュー。" loading="lazy">
+      <figcaption>③ 案内状：入力した内容がすぐ下のプレビューに反映されます。</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>データの保存とバックアップ</h2>
+    <ul>
+      <li>入力内容は自動で保存されます。ブラウザを閉じても、次に開いたときにそのまま続きから使えます。</li>
+      <li>右上の <b class="btn">JSON 書き出し</b> で、データをファイルに保存できます。別のパソコンでは <b class="btn">JSON 読み込み</b> で続きから作業できます。</li>
+    </ul>
+    <div class="note">ブラウザの「閲覧データの削除」をすると、保存した内容も消えます。大会の前には JSON 書き出しでバックアップを取っておくと安心です。</div>
+  </section>
+
+  <section>
+    <h2>困ったときは</h2>
+    <table>
+      <tr><th>表示が崩れた・古い</th><td>キーボードの <kbd>Ctrl</kbd>+<kbd>F5</kbd> で再読み込みしてください。</td></tr>
+      <tr><th>未割当の人がいる</th><td>② 組合せの <b class="btn">自動割振り</b> を押すか、未割当の人をクリックしてから組の空き枠をクリックします。</td></tr>
+      <tr><th>最初からやり直したい</th><td>① 参加者の <b class="btn">全員削除</b> で参加者と組合せが消えます。案内状の入力欄は、文字を消すか書き換えてください。</td></tr>
+      <tr><th>コピーできない</th><td>表示された枠の文字を選んで <kbd>Ctrl</kbd>+<kbd>C</kbd> でコピーしてください。</td></tr>
+    </table>
+  </section>
+</main>
+<footer>ゴルフ組合せ 簡易取説 ／ <a href="./">アプリを開く</a></footer>
+</body>
+</html>

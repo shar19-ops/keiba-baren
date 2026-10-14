@@ -53,6 +53,10 @@
   header h1 { margin: 0; font-size: 20px; flex: 1 1 auto; }
   header .tools { display: flex; gap: 8px; }
   header .tools button { background: transparent; color: var(--accent-text); border-color: var(--accent-text); }
+  header .tools a.help {
+    color: var(--accent-text); border: 1px solid var(--accent-text); border-radius: 6px;
+    padding: 6px 14px; text-decoration: none;
+  }
   nav { display: flex; gap: 4px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; }
   nav button {
     border: none; border-bottom: 3px solid transparent; border-radius: 0;
@@ -197,6 +201,7 @@
 <header>
   <h1>⛳ ゴルフ組合せ</h1>
   <div class="tools">
+    <a class="help" href="manual.html" target="_blank" rel="noopener">使い方</a>
     <button id="export-json" title="データをファイルに保存（バックアップ・別のPCへ移す）">JSON 書き出し</button>
     <button id="import-json-btn" title="書き出したファイルを読み込む">JSON 読み込み</button>
     <input type="file" id="import-json" accept=".json,application/json" hidden>
@@ -215,7 +220,7 @@
     <div class="panel">
       <h2 style="margin-top:0">参加者一覧を貼り付け</h2>
       <p class="hint">Excel で「氏名」と「HC」の2列を選んでコピーし、下の枠に貼り付けてください。HC は空欄でも構いません。見出し行は自動で飛ばします。</p>
-      <textarea id="paste" placeholder="山田 太郎	12&#10;鈴木 花子	20&#10;佐藤 一郎"></textarea>
+      <textarea id="paste"></textarea>
       <div class="row" style="margin-top:8px">
         <button id="import-replace" class="primary">置き換えて取り込む</button>
         <button id="import-append">今の一覧に追加する</button>
@@ -233,8 +238,8 @@
         <tbody id="player-rows"></tbody>
       </table>
       <div class="row" style="margin-top:10px">
-        <input id="new-name" placeholder="氏名" style="flex:1;min-width:140px">
-        <input id="new-hc" placeholder="HC" inputmode="decimal" style="width:80px">
+        <label for="new-name">氏名</label><input id="new-name" style="flex:1;min-width:140px">
+        <label for="new-hc">HC</label><input id="new-hc" inputmode="decimal" style="width:80px">
         <button id="add-player">1人追加</button>
       </div>
     </div>
@@ -275,22 +280,22 @@
   <!-- ③ 案内状 -->
   <section class="tab" id="tab-invitation">
     <div class="panel inv-form">
-      <label class="wide">表題<input data-inv="title" placeholder="第102回 雄Ｊ会　組合せ表"></label>
-      <label>回数など（表題の下・左）<input data-inv="subtitle" placeholder="6/8回"></label>
+      <label class="wide">表題<input data-inv="title"></label>
+      <label>回数など（表題の下・左）<input data-inv="subtitle"></label>
       <label>開催日<input type="date" data-inv="date"></label>
-      <label>集合時刻<input data-inv="meetTime" placeholder="7:30"></label>
-      <label>ゴルフ場<input data-inv="venue" placeholder="〇〇ゴルフ倶楽部"></label>
-      <label>TEL<input data-inv="tel" placeholder="0299-64-6661"></label>
-      <label>FAX<input data-inv="fax" placeholder="0299-64-5556"></label>
-      <label>会費（任意）<input data-inv="fee" placeholder="5,000円（当日徴収）"></label>
-      <label>幹事（任意）<input data-inv="organizer" placeholder="〇〇（携帯 090-…）"></label>
-      <label class="wide">連絡事項（任意・TEL/FAX と組合せ表の間に表示）<textarea data-inv="notes" rows="2" placeholder="雨天決行です。"></textarea></label>
+      <label>集合時刻<input data-inv="meetTime"></label>
+      <label>ゴルフ場<input data-inv="venue"></label>
+      <label>TEL<input data-inv="tel"></label>
+      <label>FAX<input data-inv="fax"></label>
+      <label>会費（任意）<input data-inv="fee"></label>
+      <label>幹事（任意）<input data-inv="organizer"></label>
+      <label class="wide">連絡事項（任意・TEL/FAX と組合せ表の間に表示）<textarea data-inv="notes" rows="2"></textarea></label>
     </div>
     <div class="panel inv-form">
       <label class="check wide"><input type="checkbox" id="show-ticket"> トトカルチョ投票券（キリトリ線から下）を付ける</label>
-      <label>左の文言<input data-inv="ticketNote" placeholder="新HDにて"></label>
-      <label>右上の文言<input data-inv="ticketType" placeholder="連勝複式"></label>
-      <label>右下の文言<input data-inv="ticketRule" placeholder="4口以上投票お願いします。"></label>
+      <label>左の文言<input data-inv="ticketNote"></label>
+      <label>右上の文言<input data-inv="ticketType"></label>
+      <label>右下の文言<input data-inv="ticketRule"></label>
       <label>○—○ の数<input type="number" id="ticket-count" min="1" max="12"></label>
     </div>
     <div class="panel inv-form">
@@ -302,7 +307,7 @@
         <img id="qr-thumb" alt="" hidden>
         <span class="hint" id="qr-msg">QR コードの画像（例：馬券投票アプリ読取用.png）を選ぶか、コピーした画像をこの画面で Ctrl+V で貼り付けてください。</span>
       </div>
-      <label>QR の説明文<input data-inv="qrCaption" placeholder="馬券投票アプリ"></label>
+      <label>QR の説明文<input data-inv="qrCaption"></label>
     </div>
     <div class="row no-print">
       <label><input type="checkbox" id="show-hc"> 組合せ表に HC を表示</label>

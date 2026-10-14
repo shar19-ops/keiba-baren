@@ -5,8 +5,16 @@
 
 ## 起動
 
-`index.html` をダブルクリックすると、ブラウザ（Edge / Chrome）で開きます。
-人に配るときは、`golf-pairing` フォルダを丸ごと渡してください（`index.html`・`core.js`・`app.js` の3つがあれば動きます）。
+- 公開版：https://shar19-ops.github.io/keiba-baren/golf-pairing/
+- 簡易取説：https://shar19-ops.github.io/keiba-baren/golf-pairing/manual.html（アプリ右上の「使い方」からも開けます）
+
+`index.html` をダブルクリックしても、ブラウザ（Edge / Chrome）で開けます。
+人に配るときは、`golf-pairing` フォルダを丸ごと渡してください（`index.html`・`core.js`・`app.js` の3つがあれば動きます。取説も付けるなら `manual.html` と `manual-images/` も）。
+
+初めて開いたとき（保存データが無いとき）は、架空の参加者14人と大会情報のダミーデータが入っています。①参加者の「全員削除」と案内状の入力欄の書き換えで、自分のデータに置き換えてください。
+URL の末尾に `#pairing`・`#invitation` を付けると、そのタブを開いた状態で表示されます。
+
+取説の画面写真（`manual-images/`）は、動作確認用サーバー（`node tests/dev-server.js`）を起動し、ヘッドレス Edge で `http://localhost:8766/#players` などを幅 1100px で撮ったものです。
 
 ## 使い方
 

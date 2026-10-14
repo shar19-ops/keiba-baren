@@ -38,6 +38,40 @@
     };
   }
 
+  // 初めて開いたとき（保存データが無いとき）に入れておくダミーデータ。
+  // 架空の名前・会場。①参加者の「全員削除」や案内状の入力欄の書き換えで消せる。
+  var SAMPLE_PLAYERS = [
+    ["山田 太郎", 12], ["鈴木 一郎", 18], ["佐藤 花子", 24], ["田中 次郎", 8],
+    ["高橋 健太", 30], ["伊藤 誠", 15], ["渡辺 大輔", 20], ["中村 翔", null],
+    ["小林 直樹", 26], ["加藤 浩二", 10], ["吉田 拓也", 22], ["山本 剛", 28],
+    ["松本 隆", 16], ["井上 学", 14],
+  ];
+
+  function sampleState() {
+    var s = defaultState();
+    s.players = SAMPLE_PLAYERS.map(function (x, i) { return { id: "sample" + (i + 1), name: x[0], hc: x[1] }; });
+    s.settings.startTime = "08:00";
+    s.settings.course = "split";
+    // 各組の先頭は幹事が指定した想定。残りは起動時に自動割振り（syncGroups）で埋まる。
+    s.groups = ["sample1", "sample2", "sample3", "sample4"].map(function (id) {
+      return { leaderId: id, memberIds: [id], locked: [] };
+    });
+    s.assigned = true;
+    Object.assign(s.invitation, {
+      title: "第1回 サンプルゴルフコンペ　組合せ表",
+      subtitle: "1/4回",
+      date: "2026-11-14",
+      meetTime: "7:30",
+      venue: "サンプルカントリークラブ",
+      tel: "000-0000-0000",
+      fax: "000-0000-0001",
+      fee: "3,000円（当日徴収）",
+      organizer: "総務部 山田",
+      notes: "※これはダミーデータです。①参加者の「全員削除」と、この画面の入力欄を書き換えてお使いください。\nプレー費は各自精算となります。雨天決行です。",
+    });
+    return s;
+  }
+
   var storageOk = true;
 
   function load() {
@@ -50,7 +84,7 @@
     } catch (e) {
       storageOk = false;
     }
-    return defaultState();
+    return sampleState();
   }
 
   function save() {
@@ -288,13 +322,19 @@
   }
 
   // ---------- タブ ----------
+  function showTab(name) {
+    var btn = document.querySelector('nav button[data-tab="' + name + '"]');
+    if (!btn) return;
+    document.querySelectorAll("nav button").forEach(function (b) { b.classList.toggle("active", b === btn); });
+    document.querySelectorAll("section.tab").forEach(function (s) { s.classList.toggle("active", s.id === "tab-" + name); });
+  }
+
   document.querySelectorAll("nav button").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var name = btn.getAttribute("data-tab");
-      document.querySelectorAll("nav button").forEach(function (b) { b.classList.toggle("active", b === btn); });
-      document.querySelectorAll("section.tab").forEach(function (s) { s.classList.toggle("active", s.id === "tab-" + name); });
-    });
+    btn.addEventListener("click", function () { showTab(btn.getAttribute("data-tab")); });
   });
+
+  // index.html#pairing / #invitation のように URL で開くタブを指定できる（取説からのリンク用）
+  showTab(location.hash.replace("#", ""));
 
   // ---------- ① 参加者 ----------
   function showImportResult(count, errors) {
@@ -660,6 +700,7 @@
 
   // ---------- 起動 ----------
   syncGroups();
+  if (storageOk) save(); // ダミーデータの割振り結果も保存し、開き直しても同じ組合せにする
   $("storage-warn").hidden = storageOk;
   render();
 })();
