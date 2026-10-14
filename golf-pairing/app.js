@@ -67,11 +67,16 @@
     return null;
   }
 
-  // 参加者や先頭が変わったあと、組の形を人数に合わせ、割振り済みなら空き枠を埋める
+  // OUT・IN に分けるときは、各コースの最後の組が3人組になる
+  function isSplit() { return state.settings.course === "split"; }
+
+  function sizes() { return Core.groupSizes(state.players.length, isSplit()); }
+
+  // 参加者・先頭・コースが変わったあと、組の形を人数に合わせ、割振り済みなら空き枠を埋める
   function syncGroups() {
     state.groups = state.assigned
-      ? Core.assign(state.players, state.groups, state.settings.mode, Math.random, true)
-      : Core.normalizeGroups(state.groups, state.players, true);
+      ? Core.assign(state.players, state.groups, state.settings.mode, Math.random, true, isSplit())
+      : Core.normalizeGroups(state.groups, state.players, true, isSplit());
     if (selected && !playerById(selected.id)) selected = null;
   }
 
@@ -96,10 +101,13 @@
   }
 
   function sizesText(n) {
-    var sizes = Core.groupSizes(n);
     if (!n) return "参加者がまだいません";
-    var t = n + "人 → " + sizes.length + "組（" + sizes.join("・") + "人）";
-    return t;
+    var s = sizes();
+    if (isSplit() && s.length > 1) {
+      var half = Math.ceil(s.length / 2);
+      return n + "人 → " + s.length + "組（OUT " + s.slice(0, half).join("・") + "人 ／ IN " + s.slice(half).join("・") + "人）";
+    }
+    return n + "人 → " + s.length + "組（" + s.join("・") + "人）";
   }
 
   function renderPlayers() {
@@ -134,7 +142,7 @@
 
     var t = times();
     $("groups").innerHTML = state.groups.map(function (g, gi) {
-      var size = Core.groupSizes(n)[gi];
+      var size = sizes()[gi];
       var st = Core.groupStats(g.memberIds, state.players);
       var opts = '<option value="">（自動で決める）</option>' + state.players.filter(function (p) {
         return !(p.id in leaderOf) || leaderOf[p.id] === gi;
@@ -315,10 +323,11 @@
     save();
     render();
   });
-  $("course").addEventListener("change", function (e) { state.settings.course = e.target.value; save(); render(); });
+  // コースを変えると組の人数の並びも変わるので、組を作り直す
+  $("course").addEventListener("change", function (e) { state.settings.course = e.target.value; selected = null; commit(); });
 
   $("auto-assign").addEventListener("click", function () {
-    state.groups = Core.assign(state.players, state.groups, state.settings.mode, Math.random, false);
+    state.groups = Core.assign(state.players, state.groups, state.settings.mode, Math.random, false, isSplit());
     state.assigned = true;
     selected = null;
     save();
@@ -370,7 +379,7 @@
     if (b.id != null) removeFrom(b.g, b.id);
     addPinned(b.g, a.id);
     addPinned(a.g, b.id);
-    state.groups = Core.normalizeGroups(state.groups, state.players, true);
+    state.groups = Core.normalizeGroups(state.groups, state.players, true, isSplit());
     selected = null;
     save();
     render();

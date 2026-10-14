@@ -67,19 +67,30 @@
 
   // ---------- 組分け ----------
   // 4人組が基本。端数は末尾の組を3人組にする（5人だけは 3+2 しか作れない）。
-  function groupSizes(n) {
+  // split（OUT・IN に分ける）なら、前半 = OUT・後半 = IN（startTimes と同じ分け方）の
+  // それぞれで最後の組を3人組にする。3人組が奇数なら余りの1組は IN 側に回す。
+  function groupSizes(n, split) {
     if (n <= 0) return [];
     if (n <= 4) return [n];
     if (n === 5) return [3, 2];
-    var g = Math.ceil(n / 4), threes = 4 * g - n, sizes = [];
-    for (var i = 0; i < g; i++) sizes.push(i < g - threes ? 4 : 3);
+    var g = Math.ceil(n / 4), threes = 4 * g - n;
+    if (!split) return courseSizes(g, threes);
+    var outCount = Math.ceil(g / 2), inCount = g - outCount;
+    var inThrees = Math.min(Math.ceil(threes / 2), inCount);
+    return courseSizes(outCount, threes - inThrees).concat(courseSizes(inCount, inThrees));
+  }
+
+  // count 組のうち末尾 threes 組を3人、残りを4人にした並び
+  function courseSizes(count, threes) {
+    var sizes = [];
+    for (var i = 0; i < count; i++) sizes.push(i < count - threes ? 4 : 3);
     return sizes;
   }
 
   // 参加者の人数に合わせて組を作り直す。残す優先順は 先頭 → 固定 → (keepMembers なら) 既存メンバー。
   // 居なくなった人・重複・定員オーバーは外れる（外れた人は未割当になる）。
-  function normalizeGroups(groups, players, keepMembers) {
-    var sizes = groupSizes(players.length);
+  function normalizeGroups(groups, players, keepMembers, split) {
+    var sizes = groupSizes(players.length, split);
     var exists = {}, used = {};
     players.forEach(function (p) { exists[p.id] = true; });
     function take(id) {
@@ -125,10 +136,11 @@
   // mode: "balanced"（HC 均等）| "random" | "hcOrder"（HC の近い人同士）
   // keepMembers=false: 先頭と固定だけ残して残りを割り振り直す（自動割振り・再シャッフル）
   // keepMembers=true : 今の組は崩さず、未割当の人だけ空き枠へ入れる
-  function assign(players, groups, mode, rng, keepMembers) {
+  // split: OUT・IN に分けるときの組の人数（groupSizes 参照）を使う
+  function assign(players, groups, mode, rng, keepMembers, split) {
     rng = rng || Math.random;
-    var sizes = groupSizes(players.length);
-    var out = normalizeGroups(groups, players, keepMembers);
+    var sizes = groupSizes(players.length, split);
+    var out = normalizeGroups(groups, players, keepMembers, split);
     var byId = {}, used = {};
     players.forEach(function (p) { byId[p.id] = p; });
     out.forEach(function (g) { g.memberIds.forEach(function (id) { used[id] = true; }); });

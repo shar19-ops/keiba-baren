@@ -116,3 +116,30 @@ test("assign(keepMembers): 今の組を崩さず、未割当の人だけ空き�
 test("assign: 参加者0人なら空配列", () => {
   assert.deepEqual(Core.assign([], [], "balanced", seededRng(1), false), []);
 });
+
+test("groupSizes(split): OUT・IN それぞれ最後の組を3人に（余りの1組は IN 側）", () => {
+  const cases = {
+    5: [3, 2], 6: [3, 3], 7: [4, 3], 8: [4, 4], 9: [3, 3, 3], 10: [4, 3, 3], 11: [4, 4, 3],
+    13: [4, 3, 3, 3], 14: [4, 3, 4, 3], 15: [4, 4, 4, 3], 17: [4, 4, 3, 3, 3], 18: [4, 4, 3, 4, 3], 22: [4, 4, 3, 4, 4, 3],
+  };
+  for (const [n, sizes] of Object.entries(cases)) assert.deepEqual(Core.groupSizes(Number(n), true), sizes, `n=${n}`);
+});
+
+test("groupSizes(split): 合計は同じで、各コース内は 4人組 → 3人組 の順", () => {
+  for (let n = 6; n <= 40; n++) {
+    const s = Core.groupSizes(n, true);
+    assert.equal(s.reduce((a, b) => a + b, 0), n);
+    assert.deepEqual(s.slice().sort(), Core.groupSizes(n).slice().sort(), `n=${n}`);
+    const half = Math.ceil(s.length / 2);
+    for (const part of [s.slice(0, half), s.slice(half)]) {
+      assert.deepEqual(part, part.slice().sort((a, b) => b - a), `n=${n}`);
+    }
+  }
+});
+
+test("assign(split): 組の人数が分割用の並びになる", () => {
+  const players = makePlayers([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+  const g = Core.assign(players, [], "random", seededRng(1), false, true);
+  assert.deepEqual(g.map((x) => x.memberIds.length), [4, 3, 4, 3]);
+  assert.equal(Core.normalizeGroups(g, players, true, true)[1].memberIds.length, 3);
+});
