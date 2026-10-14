@@ -19,19 +19,22 @@
         title: "", subtitle: "", date: "", meetTime: "", venue: "", tel: "", fax: "",
         fee: "", organizer: "", notes: "", showHc: true,
         showTicket: false, ticketNote: "新HDにて", ticketType: "連勝複式", ticketRule: "4口以上投票お願いします。", ticketCount: 6,
+        showQr: false, qrImage: "", qrCaption: "馬券投票アプリ",
       },
     };
   }
 
   function fromSaved(obj) {
     var d = defaultState();
+    var inv = Object.assign(d.invitation, obj.invitation || {});
+    if (!Core.isImageDataUrl(inv.qrImage)) inv.qrImage = ""; // 読み込んだファイル由来の値は画像だけ許す
     return {
       version: 1,
       players: obj.players,
       settings: Object.assign(d.settings, obj.settings || {}),
       groups: Array.isArray(obj.groups) ? obj.groups : [],
       assigned: !!obj.assigned,
-      invitation: Object.assign(d.invitation, obj.invitation || {}),
+      invitation: inv,
     };
   }
 
@@ -234,6 +237,18 @@
       '<div class="jf-sign"><span>氏　名</span></div></div>';
   }
 
+  // 表の下: 左に会費・幹事・連絡事項、右に QR コード
+  function footHtml(extra) {
+    var v = state.invitation;
+    var qr = v.showQr && Core.isImageDataUrl(v.qrImage)
+      ? '<div class="jf-qr"><img src="' + esc(v.qrImage) + '" alt="QR コード">' + esc(v.qrCaption) + "</div>"
+      : "";
+    if (!extra.length && !qr) return "";
+    return '<div class="jf-foot">' +
+      (extra.length ? '<div class="jf-extra">' + extra.map(function (t) { return "<p>" + esc(t) + "</p>"; }).join("") + "</div>" : "") +
+      qr + "</div>";
+  }
+
   // 参考の書式（雄J会 組合せ表）に合わせた案内状
   function invitationBody() {
     var v = state.invitation;
@@ -249,7 +264,7 @@
       '<span class="jf-course">' + esc(v.venue) + "</span></div>" +
       '<div class="jf-contact">' + contact + "</div>" +
       (secs.length ? secs.map(sectionHtml).join("") : '<p class="empty-note">（②組合せで割り振ると、ここに表が入ります）</p>') +
-      (extra.length ? '<div class="jf-extra">' + extra.map(function (t) { return "<p>" + esc(t) + "</p>"; }).join("") + "</div>" : "") +
+      footHtml(extra) +
       (v.showTicket ? ticketHtml() : "") +
       "</div>";
   }
@@ -261,6 +276,12 @@
     });
     $("show-hc").checked = !!state.invitation.showHc;
     $("show-ticket").checked = !!state.invitation.showTicket;
+    $("show-qr").checked = !!state.invitation.showQr;
+    var hasQr = Core.isImageDataUrl(state.invitation.qrImage);
+    $("qr-thumb").hidden = !hasQr;
+    if (hasQr) $("qr-thumb").src = state.invitation.qrImage;
+    else $("qr-thumb").removeAttribute("src");
+    $("qr-clear").disabled = !hasQr;
     if (document.activeElement !== $("ticket-count")) $("ticket-count").value = state.invitation.ticketCount;
     $("inv-preview").innerHTML = invitationBody();
   }
@@ -495,6 +516,66 @@
       state.invitation.ticketCount = n;
       save();
       $("inv-preview").innerHTML = invitationBody();
+    }
+  });
+
+  // ---------- QR コード画像 ----------
+  var QR_MAX_BYTES = 1024 * 1024; // localStorage を圧迫しないよう 1MB まで
+
+  function qrMsg(text) { $("qr-msg").textContent = text; }
+
+  function setQrFile(file) {
+    if (!file || !/^image\/(png|jpeg|gif|webp)$/.test(file.type)) {
+      qrMsg("PNG・JPEG・GIF・WebP の画像を選んでください。");
+      return;
+    }
+    if (file.size > QR_MAX_BYTES) {
+      qrMsg("画像が大きすぎます（1MB まで）。QR コード部分だけを切り抜いた画像にしてください。");
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () {
+      if (!Core.isImageDataUrl(reader.result)) { qrMsg("画像として読み込めませんでした。"); return; }
+      state.invitation.qrImage = reader.result;
+      state.invitation.showQr = true;
+      save();
+      renderInvitation();
+      qrMsg("QR コードを取り込みました。");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  $("show-qr").addEventListener("change", function (e) {
+    state.invitation.showQr = e.target.checked;
+    save();
+    renderInvitation();
+  });
+
+  $("qr-pick").addEventListener("click", function () { $("qr-file").click(); });
+
+  $("qr-file").addEventListener("change", function (e) {
+    setQrFile(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  $("qr-clear").addEventListener("click", function () {
+    state.invitation.qrImage = "";
+    state.invitation.showQr = false;
+    save();
+    renderInvitation();
+    qrMsg("画像を外しました。");
+  });
+
+  // 案内状タブを開いているときに Ctrl+V で画像を貼り付けられるようにする
+  document.addEventListener("paste", function (e) {
+    if (!$("tab-invitation").classList.contains("active")) return;
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === "file" && /^image\//.test(items[i].type)) {
+        e.preventDefault();
+        setQrFile(items[i].getAsFile());
+        return;
+      }
     }
   });
 

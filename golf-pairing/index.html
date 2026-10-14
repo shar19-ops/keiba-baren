@@ -157,6 +157,10 @@
   .jf-hc { font-size: 15px; }
   .jf-nm { display: flex; justify-content: space-between; padding: 0 14px; font-size: 17px; }
   .jf-nm.single { justify-content: center; }
+  #qr-thumb { width: 48px; height: 48px; image-rendering: pixelated; border: 1px solid var(--border); background: #fff; }
+  .jf-foot { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .jf-qr { margin: 16px 0 0 auto; text-align: center; font-size: 11px; }
+  .jf-qr img { display: block; width: 110px; height: 110px; image-rendering: pixelated; margin: 0 auto 2px; }
   .jf-extra { margin-top: 16px; font-size: 14px; }
   .jf-extra p { margin: 2px 0; white-space: pre-wrap; }
   .jf-ticket { margin-top: 36px; }
@@ -287,6 +291,17 @@
       <label>右上の文言<input data-inv="ticketType" placeholder="連勝複式"></label>
       <label>右下の文言<input data-inv="ticketRule" placeholder="4口以上投票お願いします。"></label>
       <label>○—○ の数<input type="number" id="ticket-count" min="1" max="12"></label>
+    </div>
+    <div class="panel inv-form">
+      <label class="check wide"><input type="checkbox" id="show-qr"> QR コード（馬券投票アプリなど）を載せる</label>
+      <div class="wide row">
+        <button id="qr-pick">画像を選ぶ</button>
+        <input type="file" id="qr-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+        <button id="qr-clear" class="danger">画像を外す</button>
+        <img id="qr-thumb" alt="" hidden>
+        <span class="hint" id="qr-msg">QR コードの画像（例：馬券投票アプリ読取用.png）を選ぶか、コピーした画像をこの画面で Ctrl+V で貼り付けてください。</span>
+      </div>
+      <label>QR の説明文<input data-inv="qrCaption" placeholder="馬券投票アプリ"></label>
     </div>
     <div class="row no-print">
       <label><input type="checkbox" id="show-hc"> 組合せ表に HC を表示</label>

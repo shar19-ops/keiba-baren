@@ -119,3 +119,13 @@ test("validateImport: 正しければ null、だめなら理由", () => {
   assert.match(Core.validateImport({ version: 1, players: [{ id: "a", name: "山田", hc: "10" }] }), /1人目/);
   assert.match(Core.validateImport({ version: 1, players: [], groups: {} }), /groups/);
 });
+
+test("isImageDataUrl: 画像の data URL だけを通す（QR コード画像の保存・読み込み用）", () => {
+  assert.equal(Core.isImageDataUrl("data:image/png;base64,iVBORw0KGgo="), true);
+  assert.equal(Core.isImageDataUrl("data:image/jpeg;base64,/9j/4AAQ"), true);
+  assert.equal(Core.isImageDataUrl("data:image/svg+xml;base64,PHN2Zz4="), false);
+  assert.equal(Core.isImageDataUrl("javascript:alert(1)"), false);
+  assert.equal(Core.isImageDataUrl("https://example.com/qr.png"), false);
+  assert.equal(Core.isImageDataUrl(""), false);
+  assert.equal(Core.isImageDataUrl(null), false);
+});

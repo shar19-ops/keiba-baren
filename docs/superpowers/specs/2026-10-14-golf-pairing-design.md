@@ -26,7 +26,8 @@ state = {
   settings: { mode: "balanced"|"random"|"hcOrder", startTime: "07:30", interval: 7, course: "OUT"|"IN"|"split" },
   groups: [{ leaderId /* string|null, 幹事指定 */, memberIds: [id...], locked: [id...] /* 手動で固定したメンバー */ }],
   invitation: { title, subtitle, date, meetTime, venue, tel, fax, fee, organizer, notes, showHc,
-                showTicket, ticketNote, ticketType, ticketRule, ticketCount }
+                showTicket, ticketNote, ticketType, ticketRule, ticketCount,
+                showQr, qrImage /* PNG・JPEG・GIF・WebP の data URL（isImageDataUrl で検証、1MB まで） */, qrCaption }
 }
 ```
 

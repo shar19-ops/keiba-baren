@@ -320,6 +320,11 @@
     return h;
   }
 
+  // 案内状に載せる QR コード画像。SVG はスクリプトを含められるので通さない。
+  function isImageDataUrl(s) {
+    return typeof s === "string" && /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(s);
+  }
+
   // ---------- JSON 読み込みの検証 ----------
   // 問題なければ null、だめなら理由の文字列
   function validateImport(obj) {
@@ -355,6 +360,7 @@
     nameChars: nameChars,
     tableTsv: tableTsv,
     tableHtml: tableHtml,
+    isImageDataUrl: isImageDataUrl,
     validateImport: validateImport,
   };
 });
