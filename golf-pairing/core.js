@@ -254,8 +254,8 @@
 
   // Word に貼る用。貼り付け先で崩れないよう style はインラインで持たせる。
   function tableHtml(rows) {
-    var cell = 'style="border:1px solid #000;padding:4px 8px;"';
-    var head = 'style="border:1px solid #000;padding:4px 8px;background:#eee;"';
+    var cell = 'style="border:1px solid #000;padding:4px 8px;white-space:nowrap;"';
+    var head = 'style="border:1px solid #000;padding:4px 8px;background:#eee;white-space:nowrap;"';
     var h = '<table style="border-collapse:collapse;font-size:11pt;">' +
       "<thead><tr><th " + head + ">組</th><th " + head + ">スタート</th><th " + head + ">コース</th>" +
       "<th " + head + ' colspan="' + NAME_COLS + '">氏名</th></tr></thead><tbody>';

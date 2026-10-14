@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ゴルフ組合せ</title>
+<style>
+  :root {
+    --bg: #f4f6f2;
+    --surface: #ffffff;
+    --surface-2: #eef2ea;
+    --text: #1d2a1f;
+    --muted: #5d6b5f;
+    --border: #cfd8cb;
+    --accent: #2f6b3a;
+    --accent-text: #ffffff;
+    --accent-soft: #dcebd9;
+    --warn-bg: #fff4d6;
+    --warn-text: #6b4b00;
+    --danger: #b3261e;
+    --select: #f5c542;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141a15;
+      --surface: #1d251e;
+      --surface-2: #253027;
+      --text: #e5ece4;
+      --muted: #9fae9f;
+      --border: #3a473b;
+      --accent: #6fbf7c;
+      --accent-text: #0f1a11;
+      --accent-soft: #2a3d2d;
+      --warn-bg: #3d3214;
+      --warn-text: #f3d98a;
+      --danger: #f2a39c;
+      --select: #b58f1c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Yu Gothic UI", "Meiryo", "Hiragino Sans", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+    padding: 12px 16px; background: var(--accent); color: var(--accent-text);
+  }
+  header h1 { margin: 0; font-size: 20px; flex: 1 1 auto; }
+  header .tools { display: flex; gap: 8px; }
+  header .tools button { background: transparent; color: var(--accent-text); border-color: var(--accent-text); }
+  nav { display: flex; gap: 4px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; }
+  nav button {
+    border: none; border-bottom: 3px solid transparent; border-radius: 0;
+    background: none; padding: 12px 16px; font-size: 15px; color: var(--muted); white-space: nowrap;
+  }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: bold; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  section.tab { display: none; }
+  section.tab.active { display: block; }
+  h2 { font-size: 17px; margin: 20px 0 8px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .hint { color: var(--muted); font-size: 13px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 14px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: bold; }
+  button.danger { color: var(--danger); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  input, select, textarea {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px;
+  }
+  textarea { width: 100%; }
+  #paste { min-height: 140px; font-family: inherit; }
+  .msg { margin: 8px 0 0; }
+  .msg.ok { color: var(--accent); }
+  .errors { background: var(--warn-bg); color: var(--warn-text); border-radius: 6px; padding: 8px 12px; margin: 8px 0 0; font-size: 13px; }
+  .errors ul { margin: 4px 0 0; padding-left: 20px; }
+  .banner { background: var(--warn-bg); color: var(--warn-text); padding: 8px 16px; }
+  table.list { width: 100%; border-collapse: collapse; }
+  table.list th, table.list td { border-bottom: 1px solid var(--border); padding: 4px 6px; text-align: left; }
+  table.list th { color: var(--muted); font-weight: normal; font-size: 13px; }
+  table.list input.name { width: 100%; min-width: 120px; }
+  table.list input.hc { width: 80px; }
+  .summary { font-weight: bold; }
+  .warn { color: var(--warn-text); background: var(--warn-bg); padding: 2px 8px; border-radius: 4px; }
+
+  fieldset { border: none; padding: 0; margin: 0; }
+  .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .settings label { display: flex; align-items: center; gap: 8px; }
+  .modes label { margin-right: 12px; white-space: nowrap; }
+
+  .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .group-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .group-head b { font-size: 16px; }
+  .group-time { color: var(--muted); font-size: 13px; }
+  .group-stats { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .leader-pick { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 6px; }
+  .leader-pick select { flex: 1; min-width: 0; }
+  ol.members { list-style: none; margin: 0; padding: 0; }
+  ol.members li {
+    display: flex; align-items: center; gap: 6px; padding: 5px 8px; margin-top: 4px;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2);
+  }
+  ol.members li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ol.members li .hcv { color: var(--muted); font-size: 12px; }
+  ol.members li.member, ol.members li.empty, .chip { cursor: pointer; }
+  ol.members li.lead { background: var(--accent-soft); font-weight: bold; }
+  ol.members li.empty { color: var(--muted); border-style: dashed; background: transparent; }
+  ol.members li.selected, .chip.selected { outline: 3px solid var(--select); }
+  button.pin { padding: 0 6px; border: none; background: none; opacity: .3; }
+  button.pin.on { opacity: 1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px dashed var(--border); border-radius: 999px; padding: 2px 10px; background: var(--surface); }
+
+  .inv-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .inv-form label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); }
+  .inv-form label input, .inv-form label textarea { color: var(--text); font-size: 15px; }
+  .inv-form .wide { grid-column: 1 / -1; }
+  #copy-fallback { margin-top: 8px; min-height: 100px; font-family: monospace; }
+
+  /* 案内状プレビュー: 紙を想定して常にライト配色 */
+  .inv-paper {
+    background: #fff; color: #000; border: 1px solid var(--border); border-radius: 4px;
+    max-width: 794px; margin: 12px auto 0; padding: 48px 56px; overflow-x: auto;
+    font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+  }
+  .inv-paper h2 { text-align: center; font-size: 22px; margin: 0 0 24px; }
+  .inv-paper .inv-lead { margin: 0 0 16px; }
+  .inv-paper table.inv-info { border-collapse: collapse; margin: 0 0 20px; }
+  .inv-paper table.inv-info th { text-align: left; padding: 3px 16px 3px 0; white-space: nowrap; vertical-align: top; }
+  .inv-paper table.inv-info td { padding: 3px 0; }
+  .inv-paper h3 { font-size: 16px; margin: 20px 0 8px; }
+  .inv-paper .inv-notes { white-space: pre-wrap; margin: 20px 0 0; }
+  .inv-paper .inv-org { text-align: right; margin: 24px 0 0; }
+  .inv-paper .empty-note { color: #777; }
+
+  @media (max-width: 600px) {
+    .inv-paper { padding: 24px 16px; }
+  }
+
+  @media print {
+    @page { size: A4 portrait; margin: 15mm; }
+    body { background: #fff; color: #000; }
+    header, nav, .banner, .no-print { display: none !important; }
+    main { max-width: none; padding: 0; }
+    section.tab { display: none !important; }
+    #tab-invitation { display: block !important; }
+    #tab-invitation > *:not(.inv-paper) { display: none !important; }
+    .inv-paper { border: none; margin: 0; padding: 0; max-width: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>⛳ ゴルフ組合せ</h1>
+  <div class="tools">
+    <button id="export-json" title="データをファイルに保存（バックアップ・別のPCへ移す）">JSON 書き出し</button>
+    <button id="import-json-btn" title="書き出したファイルを読み込む">JSON 読み込み</button>
+    <input type="file" id="import-json" accept=".json,application/json" hidden>
+  </div>
+</header>
+<div id="storage-warn" class="banner" hidden>このブラウザには保存できません。作業内容を残すには「JSON 書き出し」を使ってください。</div>
+<nav>
+  <button data-tab="players" class="active">① 参加者</button>
+  <button data-tab="pairing">② 組合せ</button>
+  <button data-tab="invitation">③ 案内状</button>
+</nav>
+
+<main>
+  <!-- ① 参加者 -->
+  <section class="tab active" id="tab-players">
+    <div class="panel">
+      <h2 style="margin-top:0">参加者一覧を貼り付け</h2>
+      <p class="hint">Excel で「氏名」と「HC」の2列を選んでコピーし、下の枠に貼り付けてください。HC は空欄でも構いません。見出し行は自動で飛ばします。</p>
+      <textarea id="paste" placeholder="山田 太郎	12&#10;鈴木 花子	20&#10;佐藤 一郎"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="import-replace" class="primary">置き換えて取り込む</button>
+        <button id="import-append">今の一覧に追加する</button>
+      </div>
+      <div id="import-msg"></div>
+    </div>
+
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <span id="player-summary" class="summary"></span>
+        <button id="clear-players" class="danger">全員削除</button>
+      </div>
+      <table class="list">
+        <thead><tr><th>#</th><th>氏名</th><th>HC</th><th></th></tr></thead>
+        <tbody id="player-rows"></tbody>
+      </table>
+      <div class="row" style="margin-top:10px">
+        <input id="new-name" placeholder="氏名" style="flex:1;min-width:140px">
+        <input id="new-hc" placeholder="HC" inputmode="decimal" style="width:80px">
+        <button id="add-player">1人追加</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 組合せ -->
+  <section class="tab" id="tab-pairing">
+    <div class="panel">
+      <div class="settings">
+        <fieldset class="modes">
+          <div class="hint">割振り方式</div>
+          <label><input type="radio" name="mode" value="balanced"> HC均等</label>
+          <label><input type="radio" name="mode" value="random"> ランダム</label>
+          <label><input type="radio" name="mode" value="hcOrder"> HC順</label>
+        </fieldset>
+        <label>開始時刻 <input type="time" id="start-time"></label>
+        <label>間隔 <input type="number" id="interval" min="0" max="30" style="width:70px"> 分</label>
+        <label>コース
+          <select id="course">
+            <option value="OUT">全組 OUT</option>
+            <option value="IN">全組 IN</option>
+            <option value="split">OUT・IN に分ける</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">各組の「先頭」を選んでから「自動割振り」を押すと、残りのメンバーを割り振ります。何度でも押し直せます（先頭と📌固定の人は動きません）。<br>
+        メンバーを1人クリックしてから別の組のメンバーをクリックすると入れ替わります（入れ替えた人は📌固定になります）。</p>
+      <div class="row">
+        <button id="auto-assign" class="primary">自動割振り（再シャッフル）</button>
+        <button id="clear-groups" class="danger">組合せを全てクリア</button>
+        <span id="pair-msg"></span>
+      </div>
+    </div>
+    <div id="unassigned" class="panel" hidden></div>
+    <div id="groups" class="groups"></div>
+  </section>
+
+  <!-- ③ 案内状 -->
+  <section class="tab" id="tab-invitation">
+    <div class="panel inv-form">
+      <label class="wide">大会名<input data-inv="title" placeholder="第10回 社内ゴルフコンペ"></label>
+      <label>開催日<input type="date" data-inv="date"></label>
+      <label>集合時刻<input data-inv="meetTime" placeholder="7:00（受付）"></label>
+      <label>ゴルフ場<input data-inv="venue" placeholder="〇〇カントリークラブ"></label>
+      <label>住所・アクセス<input data-inv="address" placeholder="〇〇県〇〇市…"></label>
+      <label>会費<input data-inv="fee" placeholder="5,000円（当日徴収）"></label>
+      <label>幹事<input data-inv="organizer" placeholder="総務部 〇〇（内線 1234）"></label>
+      <label class="wide">本文・連絡事項<textarea data-inv="notes" rows="4" placeholder="プレー費は各自精算となります。&#10;雨天決行です。"></textarea></label>
+    </div>
+    <div class="row no-print">
+      <label><input type="checkbox" id="show-hc"> 組合せ表に HC を表示</label>
+      <button id="print" class="primary">印刷 / PDF 保存</button>
+      <button id="copy-table">組合せ表をコピー（Word・Excel 用）</button>
+      <span id="copy-msg"></span>
+    </div>
+    <textarea id="copy-fallback" class="no-print" hidden readonly></textarea>
+    <div id="inv-preview" class="inv-paper"></div>
+  </section>
+</main>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
