@@ -128,20 +128,48 @@
   .inv-form .wide { grid-column: 1 / -1; }
   #copy-fallback { margin-top: 8px; min-height: 100px; font-family: monospace; }
 
-  /* 案内状プレビュー: 紙を想定して常にライト配色 */
+  .inv-form label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 15px; }
+
+  /* 案内状プレビュー（雄J会式の組合せ表）: 紙を想定して常にライト配色 */
   .inv-paper {
     background: #fff; color: #000; border: 1px solid var(--border); border-radius: 4px;
     max-width: 794px; margin: 12px auto 0; padding: 48px 56px; overflow-x: auto;
-    font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+    font-family: "HG丸ｺﾞｼｯｸM-PRO", "HGMaruGothicMPRO", "Hiragino Maru Gothic ProN", "BIZ UDPGothic", "Meiryo", sans-serif;
+    line-height: 1.4;
   }
-  .inv-paper h2 { text-align: center; font-size: 22px; margin: 0 0 24px; }
-  .inv-paper .inv-lead { margin: 0 0 16px; }
-  .inv-paper table.inv-info { border-collapse: collapse; margin: 0 0 20px; }
-  .inv-paper table.inv-info th { text-align: left; padding: 3px 16px 3px 0; white-space: nowrap; vertical-align: top; }
-  .inv-paper table.inv-info td { padding: 3px 0; }
-  .inv-paper h3 { font-size: 16px; margin: 20px 0 8px; }
-  .inv-paper .inv-notes { white-space: pre-wrap; margin: 20px 0 0; }
-  .inv-paper .inv-org { text-align: right; margin: 24px 0 0; }
+  .jf { min-width: 600px; }
+  .jf-title { text-align: center; font-size: 30px; font-weight: normal; margin: 0 0 12px; letter-spacing: .04em; }
+  .jf-sub { display: flex; justify-content: space-between; align-items: baseline; padding: 0 0 0 26%; margin-bottom: 22px; }
+  .jf-round { font-size: 13px; }
+  .jf-date { font-size: 18px; font-weight: bold; }
+  .jf-venue { display: flex; align-items: baseline; gap: 36px; padding-left: 4px; }
+  .jf-meet { font-size: 18px; font-weight: bold; text-decoration: underline; text-underline-offset: 4px; padding: 0 14px; }
+  .jf-course { font-size: 22px; font-weight: bold; }
+  .jf-contact { text-align: right; font-size: 17px; font-weight: bold; margin: 6px 0 36px; letter-spacing: .06em; }
+  .jf-sec-head { display: flex; gap: 48px; font-size: 13px; margin-top: 2px; }
+  .jf-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .jf-table th, .jf-table td { border: 1px solid #000; text-align: center; font-weight: normal; }
+  .jf-table th { font-size: 13px; padding: 4px 0; }
+  .jf-table th.no, .jf-table td.no { width: 48px; }
+  .jf-table td.no { font-size: 14px; }
+  .jf-table td.no small { display: block; font-size: 10px; color: #444; }
+  .jf-table td { padding: 2px 0 4px; height: 58px; }
+  .jf-hc { font-size: 15px; }
+  .jf-nm { display: flex; justify-content: space-between; padding: 0 14px; font-size: 17px; }
+  .jf-nm.single { justify-content: center; }
+  .jf-extra { margin-top: 16px; font-size: 14px; }
+  .jf-extra p { margin: 2px 0; white-space: pre-wrap; }
+  .jf-ticket { margin-top: 36px; }
+  .jf-cut { border-top: 1px dotted #000; position: relative; height: 0; margin-top: 14px; }
+  .jf-cut span { position: absolute; left: 50%; transform: translate(-50%, -100%); font-size: 11px; background: #fff; padding: 0 4px; }
+  .jf-ticket-head { display: flex; justify-content: space-between; font-size: 11px; }
+  .jf-ticket-head .r { text-align: right; }
+  .jf-bets { display: grid; grid-template-columns: repeat(3, max-content); gap: 18px 36px; margin: 22px 0 0 18px; }
+  .jf-bet { display: flex; align-items: center; gap: 10px; }
+  .jf-bet i { display: inline-block; width: 50px; height: 50px; border: 2px solid #000; border-radius: 50%; }
+  .jf-bet b { display: inline-block; width: 28px; border-top: 3px solid #000; }
+  .jf-sign { display: flex; justify-content: flex-end; margin-top: 40px; font-size: 13px; }
+  .jf-sign span { display: inline-block; width: 330px; border-bottom: 1px solid #000; padding: 0 0 4px 28px; }
   .inv-paper .empty-note { color: #777; }
 
   @media (max-width: 600px) {
@@ -242,14 +270,23 @@
   <!-- ③ 案内状 -->
   <section class="tab" id="tab-invitation">
     <div class="panel inv-form">
-      <label class="wide">大会名<input data-inv="title" placeholder="第10回 社内ゴルフコンペ"></label>
+      <label class="wide">表題<input data-inv="title" placeholder="第102回 雄Ｊ会　組合せ表"></label>
+      <label>回数など（表題の下・左）<input data-inv="subtitle" placeholder="6/8回"></label>
       <label>開催日<input type="date" data-inv="date"></label>
-      <label>集合時刻<input data-inv="meetTime" placeholder="7:00（受付）"></label>
-      <label>ゴルフ場<input data-inv="venue" placeholder="〇〇カントリークラブ"></label>
-      <label>住所・アクセス<input data-inv="address" placeholder="〇〇県〇〇市…"></label>
-      <label>会費<input data-inv="fee" placeholder="5,000円（当日徴収）"></label>
-      <label>幹事<input data-inv="organizer" placeholder="総務部 〇〇（内線 1234）"></label>
-      <label class="wide">本文・連絡事項<textarea data-inv="notes" rows="4" placeholder="プレー費は各自精算となります。&#10;雨天決行です。"></textarea></label>
+      <label>集合時刻<input data-inv="meetTime" placeholder="7:30"></label>
+      <label>ゴルフ場<input data-inv="venue" placeholder="〇〇ゴルフ倶楽部"></label>
+      <label>TEL<input data-inv="tel" placeholder="0299-64-6661"></label>
+      <label>FAX<input data-inv="fax" placeholder="0299-64-5556"></label>
+      <label>会費（任意）<input data-inv="fee" placeholder="5,000円（当日徴収）"></label>
+      <label>幹事（任意）<input data-inv="organizer" placeholder="〇〇（携帯 090-…）"></label>
+      <label class="wide">連絡事項（任意・表の下に表示）<textarea data-inv="notes" rows="2" placeholder="雨天決行です。"></textarea></label>
+    </div>
+    <div class="panel inv-form">
+      <label class="check wide"><input type="checkbox" id="show-ticket"> トトカルチョ投票券（キリトリ線から下）を付ける</label>
+      <label>左の文言<input data-inv="ticketNote" placeholder="新HDにて"></label>
+      <label>右上の文言<input data-inv="ticketType" placeholder="連勝複式"></label>
+      <label>右下の文言<input data-inv="ticketRule" placeholder="4口以上投票お願いします。"></label>
+      <label>○—○ の数<input type="number" id="ticket-count" min="1" max="12"></label>
     </div>
     <div class="row no-print">
       <label><input type="checkbox" id="show-hc"> 組合せ表に HC を表示</label>

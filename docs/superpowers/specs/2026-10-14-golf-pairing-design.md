@@ -25,7 +25,8 @@ state = {
   players: [{ id, name, hc /* number|null */ }],
   settings: { mode: "balanced"|"random"|"hcOrder", startTime: "07:30", interval: 7, course: "OUT"|"IN"|"split" },
   groups: [{ leaderId /* string|null, 幹事指定 */, memberIds: [id...], locked: [id...] /* 手動で固定したメンバー */ }],
-  invitation: { title, date, venue, address, meetTime, fee, notes, organizer }
+  invitation: { title, subtitle, date, meetTime, venue, tel, fax, fee, organizer, notes, showHc,
+                showTicket, ticketNote, ticketType, ticketRule, ticketCount }
 }
 ```
 
@@ -47,13 +48,14 @@ localStorage キー `golf-pairing-v1` に自動保存。JSON 書き出し／読�
   - `rng` は注入可能（テストで固定シード）。
 - `startTimes(count, startTime, interval, course)` → `[{ time: "07:30", course: "OUT" }...]`。`split` は組を前半 OUT / 後半 IN に分け、それぞれ startTime から interval 刻み。
 - `groupStats(group, players)` → `{ hcTotal, hcAvg }`（null は除外）。
-- `tableTsv(groups, players, times)` → Excel 向け TSV。`tableHtml(...)` → Word 向け HTML 表（クリップボードに text/html と text/plain の両方を載せる）。
+- `courseSections(groups, players, times)` → コースごとの表 `[{ course, time, frameStart, rows: [{ no, time, cells: [{name, hc}|null ×4] }] }]`。コースが変わる所で区切り、2つ目のコースは 5枠から、組番号は通し、時刻は先頭の0を取る（8:14）。
+- `tableTsv(sections, withHc)` → Excel 向け TSV（コース見出し・枠見出し・HC 行・氏名行）。`tableHtml(sections, withHc)` → Word 向け HTML（セルは「HC 24<br>氏名」）。クリップボードに text/html と text/plain の両方を載せる。`nameChars(name)` → 均等割付用に1文字ずつ（姓名の間は null）。
 
 ## 画面（タブ3つ）
 
 1. **参加者**: 貼り付けエリア＋「取り込み」（置き換え／追加を選択）。一覧表で氏名・HC 編集、行削除、1人追加。人数と組数（例「14人 → 4組: 4,4,3,3」）を表示。
 2. **組合せ**: 割振り方式ラジオ、開始時刻・間隔・OUT/IN/分割。組ごとのカード：組番号・時刻・コース、先頭メンバーのプルダウン（未指定可、同じ人は他組で選べない）、メンバー一覧（HC 表示、組合計／平均）。「自動割振り」「再シャッフル」（指定・固定を残して再計算）「全クリア」。メンバーをクリック→別の組のメンバーをクリックで入れ替え。各メンバーに📌固定トグル。参加者の増減で組数が変わったら、存在しない人や溢れた組は解除。
-3. **案内状**: 入力欄（大会名、日付、ゴルフ場、住所、集合時刻、会費、連絡事項、幹事）。下にプレビュー（A4 縦想定、本文＋組合せ表）。「印刷 / PDF 保存」（`window.print`、印刷時はタブ等を隠し案内状のみ）、「表をコピー（Word/Excel 用）」。
+3. **案内状**（参考: 第102回 雄J会 組合せ表）: 表題（中央・大）、回数（左）と日付（右・太字）、「集合7:30」（下線）とゴルフ場名、右寄せの TEL・FAX。コースごとに「OUTスタート 8:14」（1つ目のコースに「（敬称略）」）と表「組 ／ n 枠 ×4」、各セルは HC と均等割付の氏名。各コース2組以上かつ間隔が0分でなければ組番号の下に時刻を小さく。会費・幹事・連絡事項は入力時のみ表の下。トトカルチョ投票券は任意（キリトリ線、左右の文言、○—○ ×ticketCount（1〜12）、氏名欄）。「印刷 / PDF 保存」（印刷時は案内状のみ）、「表をコピー（Word/Excel 用）」。
 
 ヘッダ: 「JSON 書き出し」「JSON 読み込み」。
 
@@ -67,7 +69,7 @@ localStorage キー `golf-pairing-v1` に自動保存。JSON 書き出し／読�
 
 ## テスト（core.js）
 
-parsePasted（タブ/カンマ、見出し判定、全角、HC 空欄・非数値、空行）、groupSizes（1〜20人）、assign（先頭・固定が不変、全員が1回ずつ入る、各組サイズ一致、balanced で合計差が小さい、hcOrder の並び、固定シードで決定的）、startTimes（通常・split）、tableTsv。
+parsePasted（タブ/カンマ、見出し判定、全角、HC 空欄・非数値、空行）、groupSizes（1〜20人）、assign（先頭・固定が不変、全員が1回ずつ入る、各組サイズ一致、balanced で合計差が小さい、hcOrder の並び、固定シードで決定的）、startTimes（通常・split）、courseSections・tableTsv・tableHtml・nameChars。
 
 ## 対象外
 

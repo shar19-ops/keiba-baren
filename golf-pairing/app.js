@@ -12,10 +12,14 @@
     return {
       version: 1,
       players: [],
-      settings: { mode: "balanced", startTime: "08:00", interval: 7, course: "OUT", showHc: false },
+      settings: { mode: "balanced", startTime: "08:00", interval: 7, course: "OUT" },
       groups: [],
       assigned: false, // 一度でも自動割振りしたか（以降は人数が変わっても空き枠を自動で補充する）
-      invitation: { title: "", date: "", venue: "", address: "", meetTime: "", fee: "", notes: "", organizer: "" },
+      invitation: {
+        title: "", subtitle: "", date: "", meetTime: "", venue: "", tel: "", fax: "",
+        fee: "", organizer: "", notes: "", showHc: true,
+        showTicket: false, ticketNote: "新HDにて", ticketType: "連勝複式", ticketRule: "4口以上投票お願いします。", ticketCount: 6,
+      },
     };
   }
 
@@ -189,25 +193,65 @@
       }).join("") + "</div>";
   }
 
+  function sections() { return Core.courseSections(state.groups, state.players, times()); }
+
+  // 氏名をセル幅いっぱいに均等割付する（1文字ずつ span、姓名の間は空の span で広めに空ける）
+  function nameHtml(name) {
+    var chars = Core.nameChars(name);
+    if (chars.length <= 1) return '<div class="jf-nm single">' + esc(name) + "</div>";
+    return '<div class="jf-nm">' + chars.map(function (ch) {
+      return "<span>" + (ch == null ? "" : esc(ch)) + "</span>";
+    }).join("") + "</div>";
+  }
+
+  function sectionHtml(sec, si) {
+    var v = state.invitation;
+    var showRowTime = sec.rows.length > 1 && Number(state.settings.interval) > 0;
+    var h = '<div class="jf-sec-head"><span>' + esc(sec.course) + "スタート　" + esc(sec.time) + "</span>" +
+      (si === 0 ? "<span>（敬称略）</span>" : "") + "</div>" +
+      '<table class="jf-table"><tr><th class="no">組</th>';
+    for (var c = 0; c < 4; c++) h += "<th>" + (sec.frameStart + c) + "　枠</th>";
+    h += "</tr>";
+    sec.rows.forEach(function (r) {
+      h += '<tr><td class="no">' + r.no + (showRowTime && r.time ? "<small>" + esc(r.time) + "</small>" : "") + "</td>";
+      r.cells.forEach(function (x) {
+        h += "<td>" + (x ? (v.showHc ? '<div class="jf-hc">' + esc(Core.hcLabel(x.hc)) + "</div>" : "") + nameHtml(x.name) : "") + "</td>";
+      });
+      h += "</tr>";
+    });
+    return h + "</table>";
+  }
+
+  function ticketHtml() {
+    var v = state.invitation;
+    var n = Math.max(1, Math.min(12, parseInt(v.ticketCount, 10) || 6));
+    var bets = "";
+    for (var i = 0; i < n; i++) bets += '<span class="jf-bet"><i></i><b></b><i></i></span>';
+    return '<div class="jf-ticket"><div class="jf-cut"><span>キリトリ　線</span></div>' +
+      '<div class="jf-ticket-head"><span>（トトカルチョ投票券）' + esc(v.ticketNote) + "</span>" +
+      '<span class="r">' + esc(v.ticketType) + "<br>" + esc(v.ticketRule) + "</span></div>" +
+      '<div class="jf-bets">' + bets + "</div>" +
+      '<div class="jf-sign"><span>氏　名</span></div></div>';
+  }
+
+  // 参考の書式（雄J会 組合せ表）に合わせた案内状
   function invitationBody() {
     var v = state.invitation;
-    var rows = Core.tableRows(state.groups, state.players, times(), state.settings.showHc);
-    var info = [];
-    var when = [Core.formatDateJa(v.date), v.meetTime ? "集合 " + v.meetTime : ""].filter(Boolean).join("　");
-    if (when) info.push(["日時", esc(when)]);
-    if (v.venue || v.address) info.push(["会場", esc(v.venue) + (v.address ? "<br>" + esc(v.address) : "")]);
-    if (v.fee) info.push(["会費", esc(v.fee)]);
-    var hasMembers = state.groups.some(function (g) { return g.memberIds.length; });
+    var secs = sections();
+    var date = Core.formatDateJa(v.date).replace("(", "（").replace(")", "）");
+    var contact = [v.tel ? "TEL:" + esc(v.tel) : "", v.fax ? "FAX:" + esc(v.fax) : ""].filter(Boolean).join("<br>");
+    var extra = [v.fee ? "会費：" + v.fee : "", v.organizer ? "幹事：" + v.organizer : "", v.notes].filter(Boolean);
 
-    return "<h2>" + esc(v.title || "ゴルフコンペのご案内") + "</h2>" +
-      '<p class="inv-lead">下記のとおり開催いたします。皆様のご参加をお待ちしております。</p>' +
-      (info.length ? '<table class="inv-info">' + info.map(function (r) {
-        return "<tr><th>" + r[0] + "</th><td>" + r[1] + "</td></tr>";
-      }).join("") + "</table>" : "") +
-      "<h3>組合せ</h3>" +
-      (hasMembers ? Core.tableHtml(rows) : '<p class="empty-note">（②組合せで割り振ると、ここに表が入ります）</p>') +
-      (v.notes ? '<div class="inv-notes">' + esc(v.notes) + "</div>" : "") +
-      (v.organizer ? '<p class="inv-org">幹事：' + esc(v.organizer) + "</p>" : "");
+    return '<div class="jf">' +
+      '<h1 class="jf-title">' + esc(v.title || "ゴルフコンペ　組合せ表") + "</h1>" +
+      '<div class="jf-sub"><span class="jf-round">' + esc(v.subtitle) + '</span><span class="jf-date">' + esc(date) + "</span></div>" +
+      '<div class="jf-venue">' + (v.meetTime ? '<span class="jf-meet">集合' + esc(v.meetTime) + "</span>" : "") +
+      '<span class="jf-course">' + esc(v.venue) + "</span></div>" +
+      '<div class="jf-contact">' + contact + "</div>" +
+      (secs.length ? secs.map(sectionHtml).join("") : '<p class="empty-note">（②組合せで割り振ると、ここに表が入ります）</p>') +
+      (extra.length ? '<div class="jf-extra">' + extra.map(function (t) { return "<p>" + esc(t) + "</p>"; }).join("") + "</div>" : "") +
+      (v.showTicket ? ticketHtml() : "") +
+      "</div>";
   }
 
   function renderInvitation() {
@@ -215,7 +259,9 @@
       var k = input.getAttribute("data-inv");
       if (document.activeElement !== input) input.value = state.invitation[k] || "";
     });
-    $("show-hc").checked = !!state.settings.showHc;
+    $("show-hc").checked = !!state.invitation.showHc;
+    $("show-ticket").checked = !!state.invitation.showTicket;
+    if (document.activeElement !== $("ticket-count")) $("ticket-count").value = state.invitation.ticketCount;
     $("inv-preview").innerHTML = invitationBody();
   }
 
@@ -432,9 +478,24 @@
   });
 
   $("show-hc").addEventListener("change", function (e) {
-    state.settings.showHc = e.target.checked;
+    state.invitation.showHc = e.target.checked;
     save();
     renderInvitation();
+  });
+
+  $("show-ticket").addEventListener("change", function (e) {
+    state.invitation.showTicket = e.target.checked;
+    save();
+    renderInvitation();
+  });
+
+  $("ticket-count").addEventListener("input", function (e) {
+    var n = parseInt(e.target.value, 10);
+    if (n >= 1 && n <= 12) {
+      state.invitation.ticketCount = n;
+      save();
+      $("inv-preview").innerHTML = invitationBody();
+    }
   });
 
   $("print").addEventListener("click", function () { window.print(); });
@@ -442,8 +503,8 @@
   function copyMsg(text) { $("copy-msg").textContent = text; }
 
   $("copy-table").addEventListener("click", function () {
-    var rows = Core.tableRows(state.groups, state.players, times(), state.settings.showHc);
-    var html = Core.tableHtml(rows), tsv = Core.tableTsv(rows);
+    var secs = sections(), withHc = !!state.invitation.showHc;
+    var html = Core.tableHtml(secs, withHc), tsv = Core.tableTsv(secs, withHc);
     $("copy-fallback").hidden = true;
 
     function done() { copyMsg("コピーしました。Word や Excel に貼り付けてください。"); }

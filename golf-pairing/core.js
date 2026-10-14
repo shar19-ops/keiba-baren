@@ -232,52 +232,92 @@
     return y + "年" + mo + "月" + d + "日(" + WEEKDAYS[wd] + ")";
   }
 
-  // 組合せ表の行。names は最大4人（groupSizes が4を超えないため）。
-  function tableRows(groups, players, times, withHc) {
-    var byId = {};
+  var FRAMES = 4; // 1組の最大人数 = 1コースあたりの枠の数（groupSizes が4を超えないため）
+
+  // "08:14" → "8:14"
+  function shortTime(t) { return String(t || "").replace(/^0(\d:)/, "$1"); }
+
+  // 組合せ表をコースごとに分ける（参考書式: OUT=1〜4枠・IN=5〜8枠、組番号は通し）。
+  // → [{ course, time: 先頭組の時刻, frameStart, rows: [{ no, time, cells: [{name, hc}|null ×4] }] }]
+  function courseSections(groups, players, times) {
+    var byId = {}, sections = [];
     players.forEach(function (p) { byId[p.id] = p; });
-    return groups.map(function (g, i) {
-      var t = (times && times[i]) || { time: "", course: "" };
-      return {
-        no: i + 1,
-        time: t.time,
-        course: t.course,
-        names: g.memberIds.map(function (id) {
-          var p = byId[id];
-          if (!p) return "";
-          return withHc && typeof p.hc === "number" ? p.name + "（" + p.hc + "）" : p.name;
-        }),
-      };
+    groups.forEach(function (g, i) {
+      var t = (times && times[i]) || { time: "", course: "OUT" };
+      var cur = sections[sections.length - 1];
+      if (!cur || cur.course !== t.course) {
+        cur = { course: t.course, time: shortTime(t.time), frameStart: sections.length * FRAMES + 1, rows: [] };
+        sections.push(cur);
+      }
+      var cells = [];
+      for (var c = 0; c < FRAMES; c++) {
+        var p = byId[g.memberIds[c]];
+        cells.push(p ? { name: p.name, hc: p.hc } : null);
+      }
+      cur.rows.push({ no: i + 1, time: shortTime(t.time), cells: cells });
     });
+    return sections;
   }
 
-  var NAME_COLS = 4;
+  function hcLabel(hc) { return typeof hc === "number" ? "HC " + hc : "HC"; }
 
-  // Excel に貼る用（タブ区切り）
-  function tableTsv(rows) {
-    var lines = [["組", "スタート", "コース", "氏名", "", "", ""].join("\t")];
-    rows.forEach(function (r) {
-      var cells = [r.no + "組", r.time, r.course];
-      for (var c = 0; c < NAME_COLS; c++) cells.push(r.names[c] || "");
-      lines.push(cells.join("\t"));
+  function sectionTitle(sec) { return sec.course + "スタート" + (sec.time ? " " + sec.time : ""); }
+
+  function frameLabels(sec) {
+    var labels = [];
+    for (var c = 0; c < FRAMES; c++) labels.push(sec.frameStart + c + "枠");
+    return labels;
+  }
+
+  // 氏名を1文字ずつに分ける（均等割付の表示用）。姓名の間の空白は区切り null にまとめる。
+  function nameChars(name) {
+    var out = [];
+    String(name || "").replace(/^[\s　]+|[\s　]+$/g, "").split("").forEach(function (ch) {
+      if (/[\s　]/.test(ch)) { if (out[out.length - 1] !== null) out.push(null); }
+      else out.push(ch);
+    });
+    return out;
+  }
+
+  // Excel に貼る用（タブ区切り）。withHc なら各組を HC 行と氏名行の2行にする。
+  function tableTsv(sections, withHc) {
+    var lines = [];
+    sections.forEach(function (sec, si) {
+      lines.push(sectionTitle(sec) + (si === 0 ? "\t（敬称略）" : ""));
+      lines.push(["組"].concat(frameLabels(sec)).join("\t"));
+      sec.rows.forEach(function (r) {
+        var names = r.cells.map(function (x) { return x ? x.name : ""; });
+        if (withHc) {
+          lines.push([r.no].concat(r.cells.map(function (x) { return x ? hcLabel(x.hc) : ""; })).join("\t"));
+          lines.push([""].concat(names).join("\t"));
+        } else {
+          lines.push([r.no].concat(names).join("\t"));
+        }
+      });
     });
     return lines.join("\n");
   }
 
   // Word に貼る用。貼り付け先で崩れないよう style はインラインで持たせる。
-  function tableHtml(rows) {
-    var cell = 'style="border:1px solid #000;padding:4px 8px;white-space:nowrap;"';
-    var head = 'style="border:1px solid #000;padding:4px 8px;background:#eee;white-space:nowrap;"';
-    var h = '<table style="border-collapse:collapse;font-size:11pt;">' +
-      "<thead><tr><th " + head + ">組</th><th " + head + ">スタート</th><th " + head + ">コース</th>" +
-      "<th " + head + ' colspan="' + NAME_COLS + '">氏名</th></tr></thead><tbody>';
-    rows.forEach(function (r) {
-      h += "<tr><td " + cell + ">" + r.no + "組</td><td " + cell + ">" + escapeHtml(r.time) +
-        "</td><td " + cell + ">" + escapeHtml(r.course) + "</td>";
-      for (var c = 0; c < NAME_COLS; c++) h += "<td " + cell + ">" + escapeHtml(r.names[c] || "") + "</td>";
+  function tableHtml(sections, withHc) {
+    var cell = 'style="border:1px solid #000;padding:2px 8px;text-align:center;white-space:nowrap;min-width:7em;"';
+    var noCell = 'style="border:1px solid #000;padding:2px 8px;text-align:center;"';
+    var h = "";
+    sections.forEach(function (sec, si) {
+      h += '<p style="margin:8px 0 2px;">' + escapeHtml(sectionTitle(sec)) + (si === 0 ? "　（敬称略）" : "") + "</p>" +
+        '<table style="border-collapse:collapse;font-size:11pt;"><tr><td ' + noCell + ">組</td>";
+      frameLabels(sec).forEach(function (l) { h += "<td " + cell + ">" + l.replace("枠", " 枠") + "</td>"; });
       h += "</tr>";
+      sec.rows.forEach(function (r) {
+        h += "<tr><td " + noCell + ">" + r.no + "</td>";
+        r.cells.forEach(function (x) {
+          h += "<td " + cell + ">" + (x ? (withHc ? escapeHtml(hcLabel(x.hc)) + "<br>" : "") + escapeHtml(x.name) : "") + "</td>";
+        });
+        h += "</tr>";
+      });
+      h += "</table>";
     });
-    return h + "</tbody></table>";
+    return h;
   }
 
   // ---------- JSON 読み込みの検証 ----------
@@ -309,7 +349,10 @@
     groupStats: groupStats,
     startTimes: startTimes,
     formatDateJa: formatDateJa,
-    tableRows: tableRows,
+    shortTime: shortTime,
+    courseSections: courseSections,
+    hcLabel: hcLabel,
+    nameChars: nameChars,
     tableTsv: tableTsv,
     tableHtml: tableHtml,
     validateImport: validateImport,
