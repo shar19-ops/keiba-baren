@@ -255,7 +255,7 @@
     var secs = sections();
     var date = Core.formatDateJa(v.date).replace("(", "（").replace(")", "）");
     var contact = [v.tel ? "TEL:" + esc(v.tel) : "", v.fax ? "FAX:" + esc(v.fax) : ""].filter(Boolean).join("<br>");
-    var extra = [v.fee ? "会費：" + v.fee : "", v.organizer ? "幹事：" + v.organizer : "", v.notes].filter(Boolean);
+    var extra = [v.fee ? "会費：" + v.fee : "", v.organizer ? "幹事：" + v.organizer : ""].filter(Boolean);
 
     return '<div class="jf">' +
       '<h1 class="jf-title">' + esc(v.title || "ゴルフコンペ　組合せ表") + "</h1>" +
@@ -263,6 +263,7 @@
       '<div class="jf-venue">' + (v.meetTime ? '<span class="jf-meet">集合' + esc(v.meetTime) + "</span>" : "") +
       '<span class="jf-course">' + esc(v.venue) + "</span></div>" +
       '<div class="jf-contact">' + contact + "</div>" +
+      (v.notes ? '<div class="jf-notes">' + esc(v.notes) + "</div>" : "") + // 連絡事項は TEL・FAX と組合せ表の間
       (secs.length ? secs.map(sectionHtml).join("") : '<p class="empty-note">（②組合せで割り振ると、ここに表が入ります）</p>') +
       footHtml(extra) +
       (v.showTicket ? ticketHtml() : "") +
