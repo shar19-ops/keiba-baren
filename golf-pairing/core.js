@@ -188,6 +188,103 @@
     return { hcTotal: n ? round1(sum) : null, hcAvg: n ? round1(sum / n) : null };
   }
 
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+
+  function formatMinutes(min) {
+    min = ((min % 1440) + 1440) % 1440;
+    return pad2(Math.floor(min / 60)) + ":" + pad2(min % 60);
+  }
+
+  // 各組のスタート時刻とコース。course = "OUT" | "IN" | "split"（前半 OUT・後半 IN を同時刻から）
+  function startTimes(count, startTime, interval, course) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(String(startTime || ""));
+    var base = m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+    var step = Number(interval) || 0;
+    var half = Math.ceil(count / 2), out = [];
+    for (var i = 0; i < count; i++) {
+      var idx = i, c = course === "IN" ? "IN" : "OUT";
+      if (course === "split" && i >= half) { idx = i - half; c = "IN"; }
+      out.push({ time: base == null ? "" : formatMinutes(base + idx * step), course: c });
+    }
+    return out;
+  }
+
+  var WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+  // "2026-11-03" → "2026年11月3日(火)"。読めない文字列はそのまま返す。
+  function formatDateJa(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+    if (!m) return String(iso || "");
+    var y = +m[1], mo = +m[2], d = +m[3];
+    var wd = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+    return y + "年" + mo + "月" + d + "日(" + WEEKDAYS[wd] + ")";
+  }
+
+  // 組合せ表の行。names は最大4人（groupSizes が4を超えないため）。
+  function tableRows(groups, players, times, withHc) {
+    var byId = {};
+    players.forEach(function (p) { byId[p.id] = p; });
+    return groups.map(function (g, i) {
+      var t = (times && times[i]) || { time: "", course: "" };
+      return {
+        no: i + 1,
+        time: t.time,
+        course: t.course,
+        names: g.memberIds.map(function (id) {
+          var p = byId[id];
+          if (!p) return "";
+          return withHc && typeof p.hc === "number" ? p.name + "（" + p.hc + "）" : p.name;
+        }),
+      };
+    });
+  }
+
+  var NAME_COLS = 4;
+
+  // Excel に貼る用（タブ区切り）
+  function tableTsv(rows) {
+    var lines = [["組", "スタート", "コース", "氏名", "", "", ""].join("\t")];
+    rows.forEach(function (r) {
+      var cells = [r.no + "組", r.time, r.course];
+      for (var c = 0; c < NAME_COLS; c++) cells.push(r.names[c] || "");
+      lines.push(cells.join("\t"));
+    });
+    return lines.join("\n");
+  }
+
+  // Word に貼る用。貼り付け先で崩れないよう style はインラインで持たせる。
+  function tableHtml(rows) {
+    var cell = 'style="border:1px solid #000;padding:4px 8px;"';
+    var head = 'style="border:1px solid #000;padding:4px 8px;background:#eee;"';
+    var h = '<table style="border-collapse:collapse;font-size:11pt;">' +
+      "<thead><tr><th " + head + ">組</th><th " + head + ">スタート</th><th " + head + ">コース</th>" +
+      "<th " + head + ' colspan="' + NAME_COLS + '">氏名</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      h += "<tr><td " + cell + ">" + r.no + "組</td><td " + cell + ">" + escapeHtml(r.time) +
+        "</td><td " + cell + ">" + escapeHtml(r.course) + "</td>";
+      for (var c = 0; c < NAME_COLS; c++) h += "<td " + cell + ">" + escapeHtml(r.names[c] || "") + "</td>";
+      h += "</tr>";
+    });
+    return h + "</tbody></table>";
+  }
+
+  // ---------- JSON 読み込みの検証 ----------
+  // 問題なければ null、だめなら理由の文字列
+  function validateImport(obj) {
+    if (!obj || typeof obj !== "object") return "JSON の形式が正しくありません";
+    if (obj.version !== 1) return "対応していないバージョンのファイルです";
+    if (!Array.isArray(obj.players)) return "参加者（players）が見つかりません";
+    for (var i = 0; i < obj.players.length; i++) {
+      var p = obj.players[i];
+      if (!p || typeof p.id !== "string" || typeof p.name !== "string" ||
+          !(p.hc === null || typeof p.hc === "number")) {
+        return (i + 1) + "人目のデータが正しくありません";
+      }
+    }
+    if (obj.groups != null && !Array.isArray(obj.groups)) return "組（groups）の形式が正しくありません";
+    return null;
+  }
+
   return {
     toHalfWidth: toHalfWidth,
     escapeHtml: escapeHtml,
@@ -198,5 +295,11 @@
     averageHc: averageHc,
     assign: assign,
     groupStats: groupStats,
+    startTimes: startTimes,
+    formatDateJa: formatDateJa,
+    tableRows: tableRows,
+    tableTsv: tableTsv,
+    tableHtml: tableHtml,
+    validateImport: validateImport,
   };
 });
