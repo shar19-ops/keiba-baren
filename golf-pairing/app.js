@@ -782,17 +782,37 @@
     render();
   });
 
+  // ---------- 馬券投票アプリ用に書き出し ----------
+  $("export-baren").addEventListener("click", function () {
+    var placed = 0;
+    state.groups.forEach(function (g) { placed += g.memberIds.length; });
+    if (!placed) { window.alert("②組合せで組を作ってから書き出してください。"); return; }
+    if (placed < state.players.length &&
+        !window.confirm("未割当の人が " + (state.players.length - placed) + "人います（枠なしで最後に入ります）。このまま書き出しますか？")) return;
+    var data = Core.barenRace(state.groups, state.players, state.invitation.title);
+    downloadJson(data, "馬券投票_" + data.races[0].name.replace(/[\\/:*?"<>|\s]+/g, "_") + "_" + today() + ".json");
+    copyMsg("書き出しました。馬券投票アプリの「レース」タブ →「バックアップから復元（追加）」でこのファイルを選んでください。");
+  });
+
   // ---------- JSON 書き出し / 読み込み ----------
-  $("export-json").addEventListener("click", function () {
-    var blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-    var a = document.createElement("a");
+  function today() {
     var d = new Date();
+    return d.getFullYear() + ("0" + (d.getMonth() + 1)).slice(-2) + ("0" + d.getDate()).slice(-2);
+  }
+
+  function downloadJson(obj, filename) {
+    var blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "golf-pairing-" + d.getFullYear() + ("0" + (d.getMonth() + 1)).slice(-2) + ("0" + d.getDate()).slice(-2) + ".json";
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  $("export-json").addEventListener("click", function () {
+    downloadJson(state, "golf-pairing-" + today() + ".json");
   });
 
   $("import-json-btn").addEventListener("click", function () { $("import-json").click(); });

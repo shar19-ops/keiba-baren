@@ -522,6 +522,37 @@
     return typeof s === "string" && /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(s);
   }
 
+  // ---------- 馬券投票アプリ（keiba-baren-v3）への書き出し ----------
+  // 投票アプリの「バックアップから復元（追加）」で読める形にする。
+  // レース名 = 表題（末尾の「組合せ表」は除く）、出走者 = 組の順・組の中の順、枠 = 組番号（9組目以降も 9, 10…）、
+  // 未割当の人は枠なしで最後。HC が1人でもあれば競技方式を「ハンデ」にする。
+  function barenRace(groups, players, title) {
+    var byId = {}, placed = {}, horses = [];
+    players.forEach(function (p) { byId[p.id] = p; });
+    function add(p, waku) {
+      horses.push({ id: horses.length + 1, name: p.name, waku: waku, hande: typeof p.hc === "number" ? p.hc : null, sortOrder: horses.length + 1 });
+    }
+    groups.forEach(function (g, i) {
+      g.memberIds.forEach(function (id) {
+        if (byId[id] && !placed[id]) { placed[id] = true; add(byId[id], i + 1); }
+      });
+    });
+    players.forEach(function (p) { if (!placed[p.id]) add(p, null); });
+    var name = String(title || "").replace(/[\s　]*(組み?合わ?せ表|組合表)[\s　]*$/, "").replace(/^[\s　]+|[\s　]+$/g, "");
+    return {
+      races: [{
+        name: name || "ゴルフコンペ",
+        betType: "umaren",
+        umatanPositions: [1, 2],
+        resultOrder: [],
+        closed: false,
+        gameStyle: horses.some(function (h) { return h.hande != null; }) ? "hande" : "shinperia",
+        horses: horses,
+        votes: [],
+      }],
+    };
+  }
+
   // ---------- JSON 読み込みの検証 ----------
   // 問題なければ null、だめなら理由の文字列
   function validateImport(obj) {
@@ -567,6 +598,7 @@
     tableTsv: tableTsv,
     tableHtml: tableHtml,
     isImageDataUrl: isImageDataUrl,
+    barenRace: barenRace,
     validateImport: validateImport,
   };
 });
