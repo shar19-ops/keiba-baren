@@ -289,10 +289,11 @@
 
   var HISTORY_DEPTH = 3; // 直近3回まで。重みは 前回 3・2回前 2・3回前 1
 
-  // 割振りで避ける対象の回（新しい順に最大3回）。excludeDate と同じ日付の回（＝今回の大会）は除く。
+  // 割振りで避ける対象の回（新しい順に最大3回）。excludeDate と同じ日付の回（＝今回の大会）と、
+  // use: false にした回（別のコンペなど、使わないと選んだ回）は除く。
   function recentRounds(history, excludeDate) {
     return (history || []).map(function (h, i) { return { h: h, i: i }; })
-      .filter(function (x) { return !(excludeDate && x.h.date === excludeDate); })
+      .filter(function (x) { return x.h.use !== false && !(excludeDate && x.h.date === excludeDate); })
       .sort(function (a, b) {
         if (a.h.date !== b.h.date) return a.h.date < b.h.date ? 1 : -1;
         return b.i - a.i; // 同じ日付なら後から保存した方を新しいとみなす
@@ -356,6 +357,7 @@
     return {
       date: String(date || ""),
       label: String(label || ""),
+      use: true,
       groups: groups.map(function (g) {
         return g.memberIds.filter(function (id) { return byId[id]; }).map(function (id) { return byId[id].name; });
       }).filter(function (names) { return names.length; }),
@@ -364,6 +366,7 @@
 
   function isHistoryEntry(h) {
     return !!h && typeof h.date === "string" && typeof h.label === "string" && Array.isArray(h.groups) &&
+      (h.use === undefined || typeof h.use === "boolean") &&
       h.groups.every(function (g) {
         return Array.isArray(g) && g.every(function (n) { return typeof n === "string"; });
       });

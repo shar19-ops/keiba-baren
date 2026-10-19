@@ -31,6 +31,15 @@ test("recentRounds: 日付の新しい順に3回まで、今回と同じ日付�
   assert.deepEqual(Core.recentRounds(undefined, ""), []);
 });
 
+test("recentRounds: use: false の回（使わないと選んだ回）は飛ばして3回数える", () => {
+  const h = [
+    entry("2026-04-01", []), entry("2026-05-01", []), entry("2026-06-01", []), entry("2026-07-01", []),
+  ];
+  h[2].use = false;
+  h[0].use = true;
+  assert.deepEqual(Core.recentRounds(h, "").map((x) => x.date), ["2026-07-01", "2026-05-01", "2026-04-01"]);
+});
+
 test("recentRounds: 同じ日付なら後から保存した方を新しいとみなす", () => {
   const a = entry("2026-05-01", []), b = entry("2026-05-01", []);
   a.label = "先"; b.label = "後";
@@ -62,7 +71,7 @@ test("repeatInfo: 今の組で前に同じ組だった相手と、回ごとの�
 test("historyEntry: 組を氏名の配列にする（空の組は入れない）", () => {
   const players = makePlayers([1, 2, 3]);
   const h = Core.historyEntry([{ memberIds: ["p2", "p0"] }, { memberIds: [] }, { memberIds: ["p1", "gone"] }], players, "2026-10-01", "第1回");
-  assert.deepEqual(h, { date: "2026-10-01", label: "第1回", groups: [["選手2", "選手0"], ["選手1"]] });
+  assert.deepEqual(h, { date: "2026-10-01", label: "第1回", use: true, groups: [["選手2", "選手0"], ["選手1"]] });
 });
 
 // 16人・4組で、前回の4組から1人ずつ取れば重複ゼロにできる
@@ -138,4 +147,6 @@ test("validateImport: 履歴の形式を確かめる", () => {
   assert.equal(Core.validateImport(base), null);
   assert.match(Core.validateImport({ ...base, history: [{ date: "x", groups: [[1]] }] }), /履歴/);
   assert.match(Core.validateImport({ ...base, history: "x" }), /履歴/);
+  assert.equal(Core.validateImport({ ...base, history: [{ ...entry("2026-01-01", []), use: false }] }), null);
+  assert.match(Core.validateImport({ ...base, history: [{ ...entry("2026-01-01", []), use: "no" }] }), /履歴/);
 });

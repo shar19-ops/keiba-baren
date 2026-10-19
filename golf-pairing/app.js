@@ -196,7 +196,7 @@
     $("repeat-msg").innerHTML = !state.history.length
       ? "履歴がまだありません（大会が決まったら③案内状か④履歴で「履歴に保存」すると、次回から同じ組を避けます）"
       : !rs.length
-      ? "避ける対象の履歴がありません（③案内状の開催日と同じ日付の履歴は、今回の大会とみなします）"
+      ? "避ける対象の履歴がありません（④履歴で「使う」にチェックした回が対象です。③案内状の開催日と同じ日付の回は、今回の大会とみなします）"
       : "直近" + rs.length + "回と同じ組だった2人：" +
         (total === 0 ? "なし" : info.counts.map(function (c, k) {
           return AGO[k] + " " + c + "組";
@@ -718,14 +718,17 @@
     $("hist-empty").hidden = list.length > 0;
     $("hist-table").hidden = list.length === 0;
     $("hist-rows").innerHTML = list.map(function (x) {
-      var h = x.h, k = rs.indexOf(h);
+      var h = x.h, k = rs.indexOf(h), on = h.use !== false;
       var use = k >= 0 ? AGO[k] + "として避ける"
+        : !on ? "使わない"
         : h.date === v.date ? "今回の大会（対象外）" : "対象外（4回以上前）";
       var people = h.groups.reduce(function (s, g) { return s + g.length; }, 0);
       var detail = h.groups.map(function (g, gi) {
         return "<li>" + (gi + 1) + "組：" + g.map(esc).join("・") + "</li>";
       }).join("");
-      return "<tr><td>" + esc(Core.formatDateJa(h.date)) + "</td><td>" + esc(h.label) + "</td>" +
+      return "<tr" + (on ? "" : ' class="off"') + '><td><input type="checkbox" class="hist-use" data-i="' + x.i + '"' +
+        (on ? " checked" : "") + ' title="チェックを外すと、この回は同じ組を避ける対象に使いません"></td>' +
+        "<td>" + esc(Core.formatDateJa(h.date)) + "</td><td>" + esc(h.label) + "</td>" +
         "<td>" + h.groups.length + "組・" + people + "人</td><td>" + esc(use) + "</td>" +
         '<td><details><summary>組合せ</summary><ul class="hist-groups">' + detail + "</ul></details></td>" +
         '<td><button class="danger hist-del" data-i="' + x.i + '">削除</button></td></tr>';
@@ -745,6 +748,7 @@
     state.history.forEach(function (h, i) { if (h.date === v.date) at = i; });
     if (at >= 0) {
       if (!window.confirm(Core.formatDateJa(v.date) + " の履歴は保存済みです。今の組合せで置き換えますか？")) return;
+      entry.use = state.history[at].use !== false; // 使う・使わないの選択は引き継ぐ
       state.history[at] = entry;
     } else {
       state.history.push(entry);
@@ -756,6 +760,15 @@
 
   $("hist-save").addEventListener("click", saveHistory);
   $("inv-hist-save").addEventListener("click", saveHistory);
+
+  $("hist-rows").addEventListener("change", function (e) {
+    if (!e.target.classList.contains("hist-use")) return;
+    var h = state.history[parseInt(e.target.getAttribute("data-i"), 10)];
+    if (!h) return;
+    h.use = e.target.checked;
+    save();
+    render();
+  });
 
   $("hist-rows").addEventListener("click", function (e) {
     if (!e.target.classList.contains("hist-del")) return;

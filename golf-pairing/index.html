@@ -132,7 +132,9 @@
   ul.hist-groups { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
   #hist-target { font-weight: bold; }
   #hist-table td { vertical-align: top; }
-  #hist-table td:nth-child(1), #hist-table td:nth-child(3), #hist-table td:nth-child(4), #hist-table td:nth-child(6) { white-space: nowrap; }
+  #hist-table td:nth-child(2), #hist-table td:nth-child(4), #hist-table td:nth-child(5), #hist-table td:nth-child(7) { white-space: nowrap; }
+  #hist-table input.hist-use { width: 18px; height: 18px; }
+  #hist-table tr.off td:not(:first-child) { color: var(--muted); }
 
   .inv-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
   .inv-form label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); }
@@ -344,9 +346,10 @@
     </div>
     <div class="panel">
       <h2 style="margin-top:0">保存した履歴</h2>
+      <p class="hint">「使う」にチェックした回だけを、同じ組を避ける対象にします（直近3回はチェックした回の中から数えます）。別のコンペの履歴は、チェックを外してください。</p>
       <p id="hist-empty" class="hint">まだありません。</p>
       <table id="hist-table" class="list">
-        <thead><tr><th>開催日</th><th>名称</th><th>組・人数</th><th>割振りでの扱い</th><th></th><th></th></tr></thead>
+        <thead><tr><th title="チェックした回だけを、同じ組を避ける対象に使います">使う</th><th>開催日</th><th>名称</th><th>組・人数</th><th>割振りでの扱い</th><th></th><th></th></tr></thead>
         <tbody id="hist-rows"></tbody>
       </table>
     </div>
