@@ -12,9 +12,10 @@
     return {
       version: 1,
       players: [],
-      settings: { mode: "balanced", startTime: "08:00", interval: 7, course: "OUT" },
+      settings: { mode: "balanced", startTime: "08:00", interval: 7, course: "OUT", avoidRepeats: true },
       groups: [],
       assigned: false, // 一度でも自動割振りしたか（以降は人数が変わっても空き枠を自動で補充する）
+      history: [], // 過去の大会の組合せ [{ date, label, groups: [[氏名, ...], ...] }]（④履歴）
       invitation: {
         title: "", subtitle: "", date: "", meetTime: "", venue: "", tel: "", fax: "",
         fee: "", organizer: "", notes: "", showHc: true,
@@ -34,6 +35,7 @@
       settings: Object.assign(d.settings, obj.settings || {}),
       groups: Array.isArray(obj.groups) ? obj.groups : [],
       assigned: !!obj.assigned,
+      history: Array.isArray(obj.history) ? obj.history : [],
       invitation: inv,
     };
   }
@@ -134,11 +136,20 @@
 
   function hcText(hc) { return typeof hc === "number" ? String(hc) : "—"; }
 
+  // 重複を避ける対象の回（案内状の表題と同じコンペの回を新しい順に最大3回。開催日と同じ日付の回＝今回は除く）
+  function rounds() { return Core.recentRounds(state.history, state.invitation.date, state.invitation.title); }
+
+  // 自動割振りに渡す重み（「なるべく避ける」を外しているときは null）
+  function weights() { return state.settings.avoidRepeats ? Core.pairWeights(rounds()) : null; }
+
+  var AGO = ["前回", "2回前", "3回前"];
+
   // ---------- 描画 ----------
   function render() {
     renderPlayers();
     renderPairing();
     renderInvitation();
+    renderHistory();
   }
 
   function sizesText(n) {
@@ -170,12 +181,33 @@
     $("start-time").value = s.startTime;
     $("interval").value = s.interval;
     $("course").value = s.course;
+    $("avoid-repeats").checked = !!s.avoidRepeats;
     $("auto-assign").disabled = state.players.length === 0;
 
     var n = state.players.length;
     $("pair-msg").innerHTML = n === 0
       ? '<span class="warn">先に①参加者で一覧を取り込んでください</span>'
       : esc(sizesText(n)) + (n === 5 ? ' <span class="warn">2人の組ができます</span>' : "");
+
+    // 過去に同じ組だった2人
+    var rs = rounds();
+    var info = Core.repeatInfo(state.groups, state.players, rs);
+    var total = info.counts.reduce(function (a, b) { return a + b; }, 0);
+    $("repeat-msg").innerHTML = !state.history.length
+      ? "履歴がまだありません（大会が決まったら③案内状か④履歴で「履歴に保存」すると、次回から同じ組を避けます）"
+      : !rs.length
+      ? "避ける対象の履歴がありません（③案内状の表題と同じコンペ（「第〇〇回」は無視）の回が対象です。開催日と同じ日付の回は、今回の大会とみなします）"
+      : "直近" + rs.length + "回と同じ組だった2人：" +
+        (total === 0 ? "なし" : info.counts.map(function (c, k) {
+          return AGO[k] + " " + c + "組";
+        }).join("・") + '<span class="hint">（🔁 にマウスを乗せると相手が出ます）</span>');
+
+    function repeatMark(id) {
+      var list = info.byMember[id];
+      if (!list) return "";
+      var title = list.map(function (x) { return AGO[x.ago - 1] + "も同じ組：" + x.name; }).join("\n");
+      return '<span class="rep" title="' + esc(title) + '">🔁</span>';
+    }
 
     // 先頭に選ばれている人 → 組番号
     var leaderOf = {};
@@ -197,12 +229,12 @@
         if (!p) return "";
         if (id === g.leaderId) {
           return '<li class="lead" title="先頭（上のプルダウンで変更）">👑 <span class="nm">' + esc(p.name) +
-            '</span><span class="hcv">' + hcText(p.hc) + "</span></li>";
+            "</span>" + repeatMark(id) + '<span class="hcv">' + hcText(p.hc) + "</span></li>";
         }
         var pinned = g.locked.indexOf(id) >= 0;
         var sel = selected && selected.id === id;
         return '<li class="member' + (sel ? " selected" : "") + '" data-g="' + gi + '" data-id="' + esc(id) + '">' +
-          '<span class="nm">' + esc(p.name) + '</span><span class="hcv">' + hcText(p.hc) + "</span>" +
+          '<span class="nm">' + esc(p.name) + "</span>" + repeatMark(id) + '<span class="hcv">' + hcText(p.hc) + "</span>" +
           '<button class="pin' + (pinned ? " on" : "") + '" title="' + (pinned ? "固定を外す" : "固定する（自動割振りで動かさない）") + '">📌</button></li>';
       }).join("");
       for (var k = g.memberIds.length; k < size; k++) {
@@ -434,8 +466,10 @@
   // コースを変えると組の人数の並びも変わるので、組を作り直す
   $("course").addEventListener("change", function (e) { state.settings.course = e.target.value; selected = null; commit(); });
 
+  $("avoid-repeats").addEventListener("change", function (e) { state.settings.avoidRepeats = e.target.checked; save(); });
+
   $("auto-assign").addEventListener("click", function () {
-    state.groups = Core.assign(state.players, state.groups, state.settings.mode, Math.random, false, isSplit());
+    state.groups = Core.assign(state.players, state.groups, state.settings.mode, Math.random, false, isSplit(), weights());
     state.assigned = true;
     selected = null;
     save();
@@ -533,9 +567,12 @@
   // ---------- ③ 案内状 ----------
   document.querySelectorAll("[data-inv]").forEach(function (input) {
     input.addEventListener("input", function () {
-      state.invitation[input.getAttribute("data-inv")] = input.value;
+      var k = input.getAttribute("data-inv");
+      state.invitation[k] = input.value;
       save();
       $("inv-preview").innerHTML = invitationBody();
+      // 開催日で「今回」とみなす履歴が変わる
+      if (k === "date" || k === "title") { renderPairing(); renderHistory(); }
     });
   });
 
@@ -663,6 +700,86 @@
     } else {
       legacy();
     }
+  });
+
+  // ---------- ④ 履歴 ----------
+  function renderHistory() {
+    var v = state.invitation;
+    $("hist-target").textContent = v.date
+      ? Core.formatDateJa(v.date) + "　" + (v.title || "（表題なし）")
+      : "（③案内状で開催日を入れてください）";
+    $("hist-save").disabled = !v.date;
+    var comp = Core.compName(v.title);
+    $("hist-comp").textContent = comp || "（表題なし）";
+
+    var rs = rounds();
+    var list = state.history.map(function (h, i) { return { h: h, i: i }; }).sort(function (a, b) {
+      if (a.h.date !== b.h.date) return a.h.date < b.h.date ? 1 : -1;
+      return b.i - a.i;
+    });
+    $("hist-empty").hidden = list.length > 0;
+    $("hist-table").hidden = list.length === 0;
+    $("hist-rows").innerHTML = list.map(function (x) {
+      var h = x.h, k = rs.indexOf(h), same = Core.compName(h.label) === comp;
+      var use = k >= 0 ? AGO[k] + "として避ける"
+        : !same ? "別のコンペ（使わない）"
+        : h.date === v.date ? "今回の大会（対象外）" : "対象外（4回以上前）";
+      var people = h.groups.reduce(function (s, g) { return s + g.length; }, 0);
+      var detail = h.groups.map(function (g, gi) {
+        return "<li>" + (gi + 1) + "組：" + g.map(esc).join("・") + "</li>";
+      }).join("");
+      return "<tr" + (k >= 0 ? "" : ' class="off"') + "><td>" + esc(Core.formatDateJa(h.date)) + "</td>" +
+        '<td><input class="hist-label" data-i="' + x.i + '" value="' + esc(h.label) + '"' +
+        ' title="表題（コンペ名）。「第〇〇回」を除いた名前が今回の表題と同じ回だけを使います"></td>' +
+        "<td>" + h.groups.length + "組・" + people + "人</td><td>" + esc(use) + "</td>" +
+        '<td><details><summary>組合せ</summary><ul class="hist-groups">' + detail + "</ul></details></td>" +
+        '<td><button class="danger hist-del" data-i="' + x.i + '">削除</button></td></tr>';
+    }).join("");
+  }
+
+  // 今の組合せを、案内状の開催日・表題で履歴に入れる（同じ日付・同じコンペの回があれば置き換える）
+  function saveHistory() {
+    var v = state.invitation;
+    if (!v.date) { window.alert("③案内状で開催日を入れてください。"); return; }
+    var entry = Core.historyEntry(state.groups, state.players, v.date, v.title);
+    var placed = entry.groups.reduce(function (s, g) { return s + g.length; }, 0);
+    if (!placed) { window.alert("②組合せで組を作ってから保存してください。"); return; }
+    if (placed < state.players.length &&
+        !window.confirm("未割当の人が " + (state.players.length - placed) + "人います。このまま保存しますか？")) return;
+    var at = -1;
+    var comp = Core.compName(v.title);
+    state.history.forEach(function (h, i) { if (h.date === v.date && Core.compName(h.label) === comp) at = i; });
+    if (at >= 0) {
+      if (!window.confirm(Core.formatDateJa(v.date) + " の履歴は保存済みです。今の組合せで置き換えますか？")) return;
+      state.history[at] = entry;
+    } else {
+      state.history.push(entry);
+    }
+    save();
+    render();
+    window.alert("履歴に保存しました（" + Core.formatDateJa(v.date) + "）。次回の割振りでは、この組合せをなるべく避けます。");
+  }
+
+  $("hist-save").addEventListener("click", saveHistory);
+  $("inv-hist-save").addEventListener("click", saveHistory);
+
+  $("hist-rows").addEventListener("change", function (e) {
+    if (!e.target.classList.contains("hist-label")) return;
+    var h = state.history[parseInt(e.target.getAttribute("data-i"), 10)];
+    if (!h) return;
+    h.label = e.target.value.replace(/^[\s　]+|[\s　]+$/g, "");
+    save();
+    render();
+  });
+
+  $("hist-rows").addEventListener("click", function (e) {
+    if (!e.target.classList.contains("hist-del")) return;
+    var i = parseInt(e.target.getAttribute("data-i"), 10);
+    var h = state.history[i];
+    if (!h || !window.confirm(Core.formatDateJa(h.date) + "「" + h.label + "」の履歴を削除しますか？")) return;
+    state.history.splice(i, 1);
+    save();
+    render();
   });
 
   // ---------- JSON 書き出し / 読み込み ----------

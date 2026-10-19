@@ -137,8 +137,98 @@
   // keepMembers=false: 先頭と固定だけ残して残りを割り振り直す（自動割振り・再シャッフル）
   // keepMembers=true : 今の組は崩さず、未割当の人だけ空き枠へ入れる
   // split: OUT・IN に分けるときの組の人数（groupSizes 参照）を使う
-  function assign(players, groups, mode, rng, keepMembers, split) {
+  // weights: pairWeights() の weights。指定すると過去に同じ組だった2人をなるべく別の組にする
+  //   （同組の重みの合計を最優先で減らし、同じなら mode のそろい具合で比べる。keepMembers のときは使わない）
+  function assign(players, groups, mode, rng, keepMembers, split, weights) {
     rng = rng || Math.random;
+    var out = baseAssign(players, groups, mode, rng, keepMembers, split);
+    if (keepMembers || !weights || !Object.keys(weights).length) return out;
+    var best = improve(out, players, mode, weights, rng);
+    // 最初の案を変えて何度か試す（1回目は mode どおり、2回目以降はランダムな案から）
+    for (var r = 1; r < RESTARTS; r++) {
+      var cand = improve(baseAssign(players, groups, "random", rng, false, split), players, mode, weights, rng);
+      if (better(cand.cost, best.cost)) best = cand;
+    }
+    return best.groups;
+  }
+
+  var RESTARTS = 20, MAX_PASSES = 30, EPS = 1e-9;
+
+  function better(a, b) {
+    if (a.rep < b.rep - EPS) return true;
+    return Math.abs(a.rep - b.rep) <= EPS && a.mode < b.mode - EPS;
+  }
+
+  // 1組の点数。rep = 過去の同組の重みの合計、mode = 割振り方式ごとのそろっていなさ（小さいほど良い）
+  function groupCost(ids, byId, mode, weights, avg, nullHc) {
+    var rep = 0, modeCost = 0, sum = 0;
+    for (var a = 0; a < ids.length; a++) {
+      var pa = byId[ids[a]];
+      var ha = typeof pa.hc === "number" ? pa.hc : null;
+      sum += ha == null ? avg : ha;
+      for (var b = a + 1; b < ids.length; b++) {
+        var pb = byId[ids[b]];
+        rep += weights[pairKey(pa.name, pb.name)] || 0;
+        if (mode === "hcOrder") {
+          var hb = typeof pb.hc === "number" ? pb.hc : nullHc;
+          modeCost += Math.abs((ha == null ? nullHc : ha) - hb);
+        }
+      }
+    }
+    if (mode === "balanced" && ids.length) modeCost += Math.pow(sum / ids.length - avg, 2);
+    return { rep: rep, mode: modeCost };
+  }
+
+  // 先頭・固定以外のメンバーを組の間で入れ替え、点数が良くなる限り続ける（山登り法）
+  function improve(start, players, mode, weights, rng) {
+    var groups = start.map(function (g) {
+      return { leaderId: g.leaderId, memberIds: g.memberIds.slice(), locked: g.locked.slice() };
+    });
+    var byId = {}, avg = averageHc(players), maxHc = 0;
+    players.forEach(function (p) {
+      byId[p.id] = p;
+      if (typeof p.hc === "number" && p.hc > maxHc) maxHc = p.hc;
+    });
+    var nullHc = maxHc + 20; // HC順では HC なしの人を最後（いちばん下手）にまとめる
+    var slots = [];
+    groups.forEach(function (g, gi) {
+      g.memberIds.forEach(function (id, k) {
+        if (id !== g.leaderId && g.locked.indexOf(id) < 0) slots.push([gi, k]);
+      });
+    });
+    var pairs = [];
+    for (var a = 0; a < slots.length; a++) {
+      for (var b = a + 1; b < slots.length; b++) if (slots[a][0] !== slots[b][0]) pairs.push([slots[a], slots[b]]);
+    }
+    function swapAt(x, y) {
+      var gx = groups[x[0]].memberIds, gy = groups[y[0]].memberIds, t = gx[x[1]];
+      gx[x[1]] = gy[y[1]];
+      gy[y[1]] = t;
+    }
+    function gc(i) { return groupCost(groups[i].memberIds, byId, mode, weights, avg, nullHc); }
+    // 組ごとの点数を覚えておき、入れ替えた2組だけ計算し直す
+    var parts = groups.map(function (_, i) { return gc(i); });
+    var cur = { rep: 0, mode: 0 };
+    parts.forEach(function (c) { cur.rep += c.rep; cur.mode += c.mode; });
+    for (var pass = 0; pass < MAX_PASSES; pass++) {
+      var changed = false;
+      shuffle(pairs, rng).forEach(function (pr) {
+        var i = pr[0][0], j = pr[1][0];
+        swapAt(pr[0], pr[1]);
+        var ci = gc(i), cj = gc(j);
+        var c = {
+          rep: cur.rep - parts[i].rep - parts[j].rep + ci.rep + cj.rep,
+          mode: cur.mode - parts[i].mode - parts[j].mode + ci.mode + cj.mode,
+        };
+        if (better(c, cur)) { cur = c; parts[i] = ci; parts[j] = cj; changed = true; }
+        else swapAt(pr[0], pr[1]);
+      });
+      if (!changed) break;
+    }
+    return { groups: groups, cost: cur };
+  }
+
+  function baseAssign(players, groups, mode, rng, keepMembers, split) {
     var sizes = groupSizes(players.length, split);
     var out = normalizeGroups(groups, players, keepMembers, split);
     var byId = {}, used = {};
@@ -184,6 +274,113 @@
       out[gi].memberIds.push(p.id);
     });
     return out;
+  }
+
+  // ---------- 過去の組合せ（履歴） ----------
+  // 履歴は氏名で照合する（参加者を取り込み直すと id が変わるため）。空白と全角・半角の違いは無視する。
+  function nameKey(name) {
+    return String(name == null ? "" : name).normalize("NFKC").replace(/\s/g, "");
+  }
+
+  function pairKey(a, b) {
+    var x = nameKey(a), y = nameKey(b);
+    return x < y ? x + "\u0001" + y : y + "\u0001" + x;
+  }
+
+  var HISTORY_DEPTH = 3; // 直近3回まで。重みは 前回 3・2回前 2・3回前 1
+
+  // 表題からコンペ名を取り出す（「第114回 雄J会　組合せ表」→「雄J会」）。
+  // 「第〇〇回」（漢数字も可）・空白・末尾の「組合せ表」などを除き、全角・半角の違いを無視する。
+  function compName(title) {
+    return String(title == null ? "" : title).normalize("NFKC")
+      .replace(/第\s*[0-9〇一二三四五六七八九十百千]+\s*回/g, "")
+      .replace(/\s/g, "")
+      .replace(/(組み?合わ?せ表|組合表)$/, "");
+  }
+
+  // 割振りで避ける対象の回（新しい順に最大3回）。
+  // 表題のコンペ名が comp と同じ回だけを使い（別のコンペの履歴は使わない）、
+  // excludeDate と同じ日付の回（＝今回の大会）は除く。
+  function recentRounds(history, excludeDate, comp) {
+    var key = compName(comp);
+    return (history || []).map(function (h, i) { return { h: h, i: i }; })
+      .filter(function (x) {
+        return compName(x.h.label) === key && !(excludeDate && x.h.date === excludeDate);
+      })
+      .sort(function (a, b) {
+        if (a.h.date !== b.h.date) return a.h.date < b.h.date ? 1 : -1;
+        return b.i - a.i; // 同じ日付なら後から保存した方を新しいとみなす
+      })
+      .slice(0, HISTORY_DEPTH)
+      .map(function (x) { return x.h; });
+  }
+
+  // 2人の組合せ → 重み（何回も同じ組なら足し合わせる）
+  function pairWeights(rounds) {
+    var w = {};
+    rounds.forEach(function (h, k) {
+      var weight = HISTORY_DEPTH - k;
+      h.groups.forEach(function (names) {
+        for (var a = 0; a < names.length; a++) {
+          for (var b = a + 1; b < names.length; b++) {
+            var key = pairKey(names[a], names[b]);
+            w[key] = (w[key] || 0) + weight;
+          }
+        }
+      });
+    });
+    return w;
+  }
+
+  // 今の組合せで、過去に同じ組だった相手。
+  // → { byMember: { id: [{ name: 相手の氏名, ago: 何回前(1〜3) }] }, counts: [前回のペア数, 2回前, 3回前] }
+  function repeatInfo(groups, players, rounds) {
+    var byId = {}, ago = {}, byMember = {}, counts = rounds.map(function () { return 0; });
+    players.forEach(function (p) { byId[p.id] = p; });
+    rounds.forEach(function (h, k) {
+      h.groups.forEach(function (names) {
+        for (var a = 0; a < names.length; a++) {
+          for (var b = a + 1; b < names.length; b++) {
+            var key = pairKey(names[a], names[b]);
+            (ago[key] = ago[key] || []).push(k + 1);
+          }
+        }
+      });
+    });
+    groups.forEach(function (g) {
+      var ids = g.memberIds.filter(function (id) { return byId[id]; });
+      for (var a = 0; a < ids.length; a++) {
+        for (var b = a + 1; b < ids.length; b++) {
+          var pa = byId[ids[a]], pb = byId[ids[b]];
+          (ago[pairKey(pa.name, pb.name)] || []).forEach(function (n) {
+            counts[n - 1]++;
+            (byMember[pa.id] = byMember[pa.id] || []).push({ name: pb.name, ago: n });
+            (byMember[pb.id] = byMember[pb.id] || []).push({ name: pa.name, ago: n });
+          });
+        }
+      }
+    });
+    return { byMember: byMember, counts: counts };
+  }
+
+  // 今の組合せを履歴の1件にする（氏名の配列の配列。空の組は入れない）
+  function historyEntry(groups, players, date, label) {
+    var byId = {};
+    players.forEach(function (p) { byId[p.id] = p; });
+    return {
+      date: String(date || ""),
+      label: String(label || ""),
+      groups: groups.map(function (g) {
+        return g.memberIds.filter(function (id) { return byId[id]; }).map(function (id) { return byId[id].name; });
+      }).filter(function (names) { return names.length; }),
+    };
+  }
+
+  function isHistoryEntry(h) {
+    return !!h && typeof h.date === "string" && typeof h.label === "string" && Array.isArray(h.groups) &&
+      h.groups.every(function (g) {
+        return Array.isArray(g) && g.every(function (n) { return typeof n === "string"; });
+      });
   }
 
   // ---------- 集計・表示 ----------
@@ -339,6 +536,9 @@
       }
     }
     if (obj.groups != null && !Array.isArray(obj.groups)) return "組（groups）の形式が正しくありません";
+    if (obj.history != null && !(Array.isArray(obj.history) && obj.history.every(isHistoryEntry))) {
+      return "履歴（history）の形式が正しくありません";
+    }
     return null;
   }
 
@@ -351,6 +551,12 @@
     normalizeGroups: normalizeGroups,
     averageHc: averageHc,
     assign: assign,
+    nameKey: nameKey,
+    compName: compName,
+    recentRounds: recentRounds,
+    pairWeights: pairWeights,
+    repeatInfo: repeatInfo,
+    historyEntry: historyEntry,
     groupStats: groupStats,
     startTimes: startTimes,
     formatDateJa: formatDateJa,

@@ -125,6 +125,16 @@
   button.pin.on { opacity: 1; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip { border: 1px dashed var(--border); border-radius: 999px; padding: 2px 10px; background: var(--surface); }
+  .rep { cursor: help; font-size: 13px; }
+  #repeat-msg { margin: 8px 0 0; font-size: 13px; }
+  #repeat-msg .hint { margin-left: 6px; }
+  .avoid { display: flex; align-items: center; gap: 8px; }
+  ul.hist-groups { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+  #hist-target { font-weight: bold; }
+  #hist-table td { vertical-align: top; }
+  #hist-table td:nth-child(1), #hist-table td:nth-child(3), #hist-table td:nth-child(4), #hist-table td:nth-child(6) { white-space: nowrap; }
+  #hist-table input.hist-label { width: 100%; min-width: 160px; }
+  #hist-table tr.off td { color: var(--muted); }
 
   .inv-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
   .inv-form label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); }
@@ -212,6 +222,7 @@
   <button data-tab="players" class="active">① 参加者</button>
   <button data-tab="pairing">② 組合せ</button>
   <button data-tab="invitation">③ 案内状</button>
+  <button data-tab="history">④ 履歴</button>
 </nav>
 
 <main>
@@ -264,6 +275,7 @@
             <option value="split">OUT・IN に分ける</option>
           </select>
         </label>
+        <label class="avoid"><input type="checkbox" id="avoid-repeats"> 直近3回と同じ組をなるべく避ける</label>
       </div>
       <p class="hint">各組の「先頭」を選んでから「自動割振り」を押すと、残りのメンバーを割り振ります。何度でも押し直せます（先頭と📌固定の人は動きません）。<br>
         メンバーを1人クリックしてから別の組のメンバーをクリックすると入れ替わります（入れ替えた人は📌固定になります）。</p>
@@ -272,6 +284,7 @@
         <button id="clear-groups" class="danger">組合せを全てクリア</button>
         <span id="pair-msg"></span>
       </div>
+      <p id="repeat-msg"></p>
     </div>
     <div id="unassigned" class="panel" hidden></div>
     <div id="groups" class="groups"></div>
@@ -313,10 +326,34 @@
       <label><input type="checkbox" id="show-hc"> 組合せ表に HC を表示</label>
       <button id="print" class="primary">印刷 / PDF 保存</button>
       <button id="copy-table">組合せ表をコピー（Word・Excel 用）</button>
+      <button id="inv-hist-save" title="次回以降の割振りで、この組合せをなるべく避けます">履歴に保存</button>
       <span id="copy-msg"></span>
     </div>
     <textarea id="copy-fallback" class="no-print" hidden readonly></textarea>
     <div id="inv-preview" class="inv-paper"></div>
+  </section>
+
+  <!-- ④ 履歴 -->
+  <section class="tab" id="tab-history">
+    <div class="panel">
+      <h2 style="margin-top:0">今の組合せを履歴に保存</h2>
+      <p class="hint">組合せが決まったら保存してください。次回からの「自動割振り」で、直近3回に同じ組だった2人をなるべく別の組にします（前回をいちばん重く見ます）。<br>
+        ③案内状の開催日・表題で保存します。同じ開催日・同じコンペの履歴があれば置き換えます。案内状の開催日と同じ日付の履歴は「今回の大会」とみなし、避ける対象に入れません。</p>
+      <div class="row">
+        <span>保存する大会：</span><span id="hist-target"></span>
+        <button id="hist-save" class="primary">履歴に保存</button>
+      </div>
+      <p class="hint" style="margin-bottom:0">今回のコンペ名（表題から「第〇〇回」などを除いた名前）：<b id="hist-comp"></b>　この名前が同じ履歴だけを使います。</p>
+    </div>
+    <div class="panel">
+      <h2 style="margin-top:0">保存した履歴</h2>
+      <p class="hint">③案内状の表題と同じコンペの回だけを、同じ組を避ける対象にします（「第〇〇回」・空白・末尾の「組合せ表」は無視して比べます）。別のコンペの履歴は自動で使いません。表題が違っていて対象にならない回は、ここで表題を直してください。</p>
+      <p id="hist-empty" class="hint">まだありません。</p>
+      <table id="hist-table" class="list">
+        <thead><tr><th>開催日</th><th>表題（直せます）</th><th>組・人数</th><th>割振りでの扱い</th><th></th><th></th></tr></thead>
+        <tbody id="hist-rows"></tbody>
+      </table>
+    </div>
   </section>
 </main>
 
