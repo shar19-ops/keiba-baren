@@ -136,8 +136,8 @@
 
   function hcText(hc) { return typeof hc === "number" ? String(hc) : "—"; }
 
-  // 重複を避ける対象の回（新しい順に最大3回。案内状の開催日と同じ日付の回＝今回は除く）
-  function rounds() { return Core.recentRounds(state.history, state.invitation.date); }
+  // 重複を避ける対象の回（案内状の表題と同じコンペの回を新しい順に最大3回。開催日と同じ日付の回＝今回は除く）
+  function rounds() { return Core.recentRounds(state.history, state.invitation.date, state.invitation.title); }
 
   // 自動割振りに渡す重み（「なるべく避ける」を外しているときは null）
   function weights() { return state.settings.avoidRepeats ? Core.pairWeights(rounds()) : null; }
@@ -196,7 +196,7 @@
     $("repeat-msg").innerHTML = !state.history.length
       ? "履歴がまだありません（大会が決まったら③案内状か④履歴で「履歴に保存」すると、次回から同じ組を避けます）"
       : !rs.length
-      ? "避ける対象の履歴がありません（④履歴で「使う」にチェックした回が対象です。③案内状の開催日と同じ日付の回は、今回の大会とみなします）"
+      ? "避ける対象の履歴がありません（③案内状の表題と同じコンペ（「第〇〇回」は無視）の回が対象です。開催日と同じ日付の回は、今回の大会とみなします）"
       : "直近" + rs.length + "回と同じ組だった2人：" +
         (total === 0 ? "なし" : info.counts.map(function (c, k) {
           return AGO[k] + " " + c + "組";
@@ -709,6 +709,8 @@
       ? Core.formatDateJa(v.date) + "　" + (v.title || "（表題なし）")
       : "（③案内状で開催日を入れてください）";
     $("hist-save").disabled = !v.date;
+    var comp = Core.compName(v.title);
+    $("hist-comp").textContent = comp || "（表題なし）";
 
     var rs = rounds();
     var list = state.history.map(function (h, i) { return { h: h, i: i }; }).sort(function (a, b) {
@@ -718,24 +720,24 @@
     $("hist-empty").hidden = list.length > 0;
     $("hist-table").hidden = list.length === 0;
     $("hist-rows").innerHTML = list.map(function (x) {
-      var h = x.h, k = rs.indexOf(h), on = h.use !== false;
+      var h = x.h, k = rs.indexOf(h), same = Core.compName(h.label) === comp;
       var use = k >= 0 ? AGO[k] + "として避ける"
-        : !on ? "使わない"
+        : !same ? "別のコンペ（使わない）"
         : h.date === v.date ? "今回の大会（対象外）" : "対象外（4回以上前）";
       var people = h.groups.reduce(function (s, g) { return s + g.length; }, 0);
       var detail = h.groups.map(function (g, gi) {
         return "<li>" + (gi + 1) + "組：" + g.map(esc).join("・") + "</li>";
       }).join("");
-      return "<tr" + (on ? "" : ' class="off"') + '><td><input type="checkbox" class="hist-use" data-i="' + x.i + '"' +
-        (on ? " checked" : "") + ' title="チェックを外すと、この回は同じ組を避ける対象に使いません"></td>' +
-        "<td>" + esc(Core.formatDateJa(h.date)) + "</td><td>" + esc(h.label) + "</td>" +
+      return "<tr" + (k >= 0 ? "" : ' class="off"') + "><td>" + esc(Core.formatDateJa(h.date)) + "</td>" +
+        '<td><input class="hist-label" data-i="' + x.i + '" value="' + esc(h.label) + '"' +
+        ' title="表題（コンペ名）。「第〇〇回」を除いた名前が今回の表題と同じ回だけを使います"></td>' +
         "<td>" + h.groups.length + "組・" + people + "人</td><td>" + esc(use) + "</td>" +
         '<td><details><summary>組合せ</summary><ul class="hist-groups">' + detail + "</ul></details></td>" +
         '<td><button class="danger hist-del" data-i="' + x.i + '">削除</button></td></tr>';
     }).join("");
   }
 
-  // 今の組合せを、案内状の開催日・表題で履歴に入れる（同じ日付の回があれば置き換える）
+  // 今の組合せを、案内状の開催日・表題で履歴に入れる（同じ日付・同じコンペの回があれば置き換える）
   function saveHistory() {
     var v = state.invitation;
     if (!v.date) { window.alert("③案内状で開催日を入れてください。"); return; }
@@ -745,10 +747,10 @@
     if (placed < state.players.length &&
         !window.confirm("未割当の人が " + (state.players.length - placed) + "人います。このまま保存しますか？")) return;
     var at = -1;
-    state.history.forEach(function (h, i) { if (h.date === v.date) at = i; });
+    var comp = Core.compName(v.title);
+    state.history.forEach(function (h, i) { if (h.date === v.date && Core.compName(h.label) === comp) at = i; });
     if (at >= 0) {
       if (!window.confirm(Core.formatDateJa(v.date) + " の履歴は保存済みです。今の組合せで置き換えますか？")) return;
-      entry.use = state.history[at].use !== false; // 使う・使わないの選択は引き継ぐ
       state.history[at] = entry;
     } else {
       state.history.push(entry);
@@ -762,10 +764,10 @@
   $("inv-hist-save").addEventListener("click", saveHistory);
 
   $("hist-rows").addEventListener("change", function (e) {
-    if (!e.target.classList.contains("hist-use")) return;
+    if (!e.target.classList.contains("hist-label")) return;
     var h = state.history[parseInt(e.target.getAttribute("data-i"), 10)];
     if (!h) return;
-    h.use = e.target.checked;
+    h.label = e.target.value.replace(/^[\s　]+|[\s　]+$/g, "");
     save();
     render();
   });

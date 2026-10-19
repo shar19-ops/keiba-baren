@@ -289,11 +289,24 @@
 
   var HISTORY_DEPTH = 3; // 直近3回まで。重みは 前回 3・2回前 2・3回前 1
 
-  // 割振りで避ける対象の回（新しい順に最大3回）。excludeDate と同じ日付の回（＝今回の大会）と、
-  // use: false にした回（別のコンペなど、使わないと選んだ回）は除く。
-  function recentRounds(history, excludeDate) {
+  // 表題からコンペ名を取り出す（「第114回 雄J会　組合せ表」→「雄J会」）。
+  // 「第〇〇回」（漢数字も可）・空白・末尾の「組合せ表」などを除き、全角・半角の違いを無視する。
+  function compName(title) {
+    return String(title == null ? "" : title).normalize("NFKC")
+      .replace(/第\s*[0-9〇一二三四五六七八九十百千]+\s*回/g, "")
+      .replace(/\s/g, "")
+      .replace(/(組み?合わ?せ表|組合表)$/, "");
+  }
+
+  // 割振りで避ける対象の回（新しい順に最大3回）。
+  // 表題のコンペ名が comp と同じ回だけを使い（別のコンペの履歴は使わない）、
+  // excludeDate と同じ日付の回（＝今回の大会）は除く。
+  function recentRounds(history, excludeDate, comp) {
+    var key = compName(comp);
     return (history || []).map(function (h, i) { return { h: h, i: i }; })
-      .filter(function (x) { return x.h.use !== false && !(excludeDate && x.h.date === excludeDate); })
+      .filter(function (x) {
+        return compName(x.h.label) === key && !(excludeDate && x.h.date === excludeDate);
+      })
       .sort(function (a, b) {
         if (a.h.date !== b.h.date) return a.h.date < b.h.date ? 1 : -1;
         return b.i - a.i; // 同じ日付なら後から保存した方を新しいとみなす
@@ -357,7 +370,6 @@
     return {
       date: String(date || ""),
       label: String(label || ""),
-      use: true,
       groups: groups.map(function (g) {
         return g.memberIds.filter(function (id) { return byId[id]; }).map(function (id) { return byId[id].name; });
       }).filter(function (names) { return names.length; }),
@@ -366,7 +378,6 @@
 
   function isHistoryEntry(h) {
     return !!h && typeof h.date === "string" && typeof h.label === "string" && Array.isArray(h.groups) &&
-      (h.use === undefined || typeof h.use === "boolean") &&
       h.groups.every(function (g) {
         return Array.isArray(g) && g.every(function (n) { return typeof n === "string"; });
       });
@@ -541,6 +552,7 @@
     averageHc: averageHc,
     assign: assign,
     nameKey: nameKey,
+    compName: compName,
     recentRounds: recentRounds,
     pairWeights: pairWeights,
     repeatInfo: repeatInfo,

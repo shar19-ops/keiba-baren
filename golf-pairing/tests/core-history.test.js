@@ -5,7 +5,8 @@ const Core = require("../core");
 const { seededRng, makePlayers } = require("./helpers");
 
 const names = (players, ids) => ids.map((id) => players.find((p) => p.id === id).name);
-const entry = (date, groups) => ({ date, label: date, groups });
+const COMP = "第1回 雄J会 組合せ表";
+const entry = (date, groups, label = COMP) => ({ date, label, groups });
 
 // 前回の組合せ（氏名の配列）を作る
 function pastFrom(players, idGroups) {
@@ -26,24 +27,34 @@ test("recentRounds: 日付の新しい順に3回まで、今回と同じ日付�
     entry("2026-04-01", []), entry("2026-06-01", []), entry("2026-05-01", []),
     entry("2026-07-01", []), entry("2026-08-01", []),
   ];
-  assert.deepEqual(Core.recentRounds(h, "2026-08-01").map((x) => x.date), ["2026-07-01", "2026-06-01", "2026-05-01"]);
-  assert.deepEqual(Core.recentRounds(h, "").map((x) => x.date), ["2026-08-01", "2026-07-01", "2026-06-01"]);
-  assert.deepEqual(Core.recentRounds(undefined, ""), []);
+  assert.deepEqual(Core.recentRounds(h, "2026-08-01", COMP).map((x) => x.date), ["2026-07-01", "2026-06-01", "2026-05-01"]);
+  assert.deepEqual(Core.recentRounds(h, "", COMP).map((x) => x.date), ["2026-08-01", "2026-07-01", "2026-06-01"]);
+  assert.deepEqual(Core.recentRounds(undefined, "", COMP), []);
 });
 
-test("recentRounds: use: false の回（使わないと選んだ回）は飛ばして3回数える", () => {
+test("compName: 第〇〇回・空白・末尾の組合せ表を除き、全角・半角をそろえる", () => {
+  assert.equal(Core.compName("第114回雄J会 組合せ表"), "雄J会");
+  assert.equal(Core.compName("第 115 回　雄Ｊ会　組み合わせ表"), "雄J会");
+  assert.equal(Core.compName("第百十四回 雄J会"), "雄J会");
+  assert.equal(Core.compName("2026年 第3回 部会コンペ"), "2026年部会コンペ");
+  assert.equal(Core.compName(""), "");
+});
+
+test("recentRounds: 表題のコンペ名が同じ回だけを使い、別のコンペは飛ばして3回数える", () => {
   const h = [
-    entry("2026-04-01", []), entry("2026-05-01", []), entry("2026-06-01", []), entry("2026-07-01", []),
+    entry("2026-04-01", [], "第110回 雄J会 組合せ表"),
+    entry("2026-05-01", [], "第111回雄J会"),
+    entry("2026-06-01", [], "第5回 親睦コンペ 組合せ表"),
+    entry("2026-07-01", [], "第112回　雄Ｊ会　組合せ表"),
   ];
-  h[2].use = false;
-  h[0].use = true;
-  assert.deepEqual(Core.recentRounds(h, "").map((x) => x.date), ["2026-07-01", "2026-05-01", "2026-04-01"]);
+  assert.deepEqual(Core.recentRounds(h, "", "第113回 雄J会 組合せ表").map((x) => x.date), ["2026-07-01", "2026-05-01", "2026-04-01"]);
+  assert.deepEqual(Core.recentRounds(h, "", "第6回 親睦コンペ").map((x) => x.date), ["2026-06-01"]);
+  assert.deepEqual(Core.recentRounds(h, "", "社長杯"), []);
 });
 
 test("recentRounds: 同じ日付なら後から保存した方を新しいとみなす", () => {
-  const a = entry("2026-05-01", []), b = entry("2026-05-01", []);
-  a.label = "先"; b.label = "後";
-  assert.deepEqual(Core.recentRounds([a, b], "").map((x) => x.label), ["後", "先"]);
+  const a = entry("2026-05-01", [], "第1回 雄J会"), b = entry("2026-05-01", [], "第2回 雄J会");
+  assert.deepEqual(Core.recentRounds([a, b], "", "雄J会").map((x) => x.label), ["第2回 雄J会", "第1回 雄J会"]);
 });
 
 test("pairWeights: 前回3・2回前2・3回前1、同じ2人が何回もいれば足す", () => {
@@ -71,7 +82,7 @@ test("repeatInfo: 今の組で前に同じ組だった相手と、回ごとの�
 test("historyEntry: 組を氏名の配列にする（空の組は入れない）", () => {
   const players = makePlayers([1, 2, 3]);
   const h = Core.historyEntry([{ memberIds: ["p2", "p0"] }, { memberIds: [] }, { memberIds: ["p1", "gone"] }], players, "2026-10-01", "第1回");
-  assert.deepEqual(h, { date: "2026-10-01", label: "第1回", use: true, groups: [["選手2", "選手0"], ["選手1"]] });
+  assert.deepEqual(h, { date: "2026-10-01", label: "第1回", groups: [["選手2", "選手0"], ["選手1"]] });
 });
 
 // 16人・4組で、前回の4組から1人ずつ取れば重複ゼロにできる
@@ -147,6 +158,4 @@ test("validateImport: 履歴の形式を確かめる", () => {
   assert.equal(Core.validateImport(base), null);
   assert.match(Core.validateImport({ ...base, history: [{ date: "x", groups: [[1]] }] }), /履歴/);
   assert.match(Core.validateImport({ ...base, history: "x" }), /履歴/);
-  assert.equal(Core.validateImport({ ...base, history: [{ ...entry("2026-01-01", []), use: false }] }), null);
-  assert.match(Core.validateImport({ ...base, history: [{ ...entry("2026-01-01", []), use: "no" }] }), /履歴/);
 });

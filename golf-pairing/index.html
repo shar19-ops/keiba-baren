@@ -132,9 +132,9 @@
   ul.hist-groups { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
   #hist-target { font-weight: bold; }
   #hist-table td { vertical-align: top; }
-  #hist-table td:nth-child(2), #hist-table td:nth-child(4), #hist-table td:nth-child(5), #hist-table td:nth-child(7) { white-space: nowrap; }
-  #hist-table input.hist-use { width: 18px; height: 18px; }
-  #hist-table tr.off td:not(:first-child) { color: var(--muted); }
+  #hist-table td:nth-child(1), #hist-table td:nth-child(3), #hist-table td:nth-child(4), #hist-table td:nth-child(6) { white-space: nowrap; }
+  #hist-table input.hist-label { width: 100%; min-width: 160px; }
+  #hist-table tr.off td { color: var(--muted); }
 
   .inv-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
   .inv-form label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); }
@@ -338,18 +338,19 @@
     <div class="panel">
       <h2 style="margin-top:0">今の組合せを履歴に保存</h2>
       <p class="hint">組合せが決まったら保存してください。次回からの「自動割振り」で、直近3回に同じ組だった2人をなるべく別の組にします（前回をいちばん重く見ます）。<br>
-        ③案内状の開催日・表題で保存します。同じ開催日の履歴があれば置き換えます。案内状の開催日と同じ日付の履歴は「今回の大会」とみなし、避ける対象に入れません。</p>
+        ③案内状の開催日・表題で保存します。同じ開催日・同じコンペの履歴があれば置き換えます。案内状の開催日と同じ日付の履歴は「今回の大会」とみなし、避ける対象に入れません。</p>
       <div class="row">
         <span>保存する大会：</span><span id="hist-target"></span>
         <button id="hist-save" class="primary">履歴に保存</button>
       </div>
+      <p class="hint" style="margin-bottom:0">今回のコンペ名（表題から「第〇〇回」などを除いた名前）：<b id="hist-comp"></b>　この名前が同じ履歴だけを使います。</p>
     </div>
     <div class="panel">
       <h2 style="margin-top:0">保存した履歴</h2>
-      <p class="hint">「使う」にチェックした回だけを、同じ組を避ける対象にします（直近3回はチェックした回の中から数えます）。別のコンペの履歴は、チェックを外してください。</p>
+      <p class="hint">③案内状の表題と同じコンペの回だけを、同じ組を避ける対象にします（「第〇〇回」・空白・末尾の「組合せ表」は無視して比べます）。別のコンペの履歴は自動で使いません。表題が違っていて対象にならない回は、ここで表題を直してください。</p>
       <p id="hist-empty" class="hint">まだありません。</p>
       <table id="hist-table" class="list">
-        <thead><tr><th title="チェックした回だけを、同じ組を避ける対象に使います">使う</th><th>開催日</th><th>名称</th><th>組・人数</th><th>割振りでの扱い</th><th></th><th></th></tr></thead>
+        <thead><tr><th>開催日</th><th>表題（直せます）</th><th>組・人数</th><th>割振りでの扱い</th><th></th><th></th></tr></thead>
         <tbody id="hist-rows"></tbody>
       </table>
     </div>
