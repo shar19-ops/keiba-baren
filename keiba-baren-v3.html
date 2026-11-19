@@ -144,6 +144,9 @@
   .odds-table td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
   .odds-table tbody tr:last-child td{border-bottom:none;}
   .odds-table tbody tr:nth-child(even) td{background:#f8faf9;}
+  .live-odds td.num{text-align:right;white-space:nowrap;}
+  .live-odds td.odds{text-align:right;white-space:nowrap;font-weight:800;color:var(--green);font-size:15px;}
+  .live-odds .nm{font-size:11px;color:var(--sub);}
   .odds-uma-num{
     text-align:center;width:40px;
     font-size:19px;font-weight:900;font-family:Georgia,'Times New Roman',serif;
@@ -343,6 +346,11 @@
         <button class="btn btn-primary btn-block" id="submitVote" style="margin-top:12px">この内容で投票</button>
         <div class="hint">同じ人で投票し直すと上書きされます。</div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>📈 現在のオッズ <span class="badge" id="oddsPot">0 pt</span></h2>
+      <div id="oddsList"></div>
     </div>
 
     <div class="card">
@@ -1352,8 +1360,49 @@ function renderVoteLock(){
   $('voteClosedNotice').style.display=state.closed?'':'none';
   $('voteFormFields').style.display=state.closed?'none':'';
 }
+// 現在のオッズ：集計と同じく「総額 ÷ その組の点数」を1000pt未満切捨てし、1点のポイント代で割る
+function renderOdds(){
+  const el=$('oddsList'); if(!el)return;
+  const unit=state.unitStake;
+  const totalBets=state.votes.reduce((s,v)=>s+v.combos.length,0);
+  const pot=totalBets*unit;
+  $('oddsPot').textContent=`総額 ${pot.toLocaleString()} pt`;
+  if(totalBets===0){el.innerHTML='<div class="empty">投票が入るとオッズが表示されます</div>';el._html=null;return;}
+  const map=new Map();
+  state.votes.forEach(v=>v.combos.forEach(c=>{
+    const label=comboLabel(c);
+    if(String(label).includes('?'))return;
+    const e=map.get(label)||{label,combo:c,count:0};
+    e.count++; map.set(label,e);
+  }));
+  const rows=[...map.values()].map(e=>{
+    const payout=Math.floor(Math.floor(pot/e.count)/1000)*1000;
+    return{...e,odds:unit>0?payout/unit:0};
+  }).sort((a,b)=>a.odds-b.odds||String(a.label).localeCompare(String(b.label),'ja',{numeric:true}));
+  const names=c=>{
+    if(state.betType==='wakuren')return '';
+    let a=c[0],b=c[1];
+    if(state.betType!=='umatan'&&horseDisplayNo(a)>horseDisplayNo(b))[a,b]=[b,a];
+    return `${escapeHtml(horseNameById(a))}${state.betType==='umatan'?' → ':'・'}${escapeHtml(horseNameById(b))}`;
+  };
+  const rank=i=>rows.findIndex(x=>x.odds===rows[i].odds)+1;
+  const tr=(r,i)=>`<tr><td class="num">${rank(i)}</td><td><b>${escapeHtml(r.label)}</b>${state.betType==='wakuren'?'枠':''}<div class="nm">${names(r.combo)}</div></td>
+    <td class="num">${r.count}票</td><td class="odds">${r.odds.toFixed(1)}倍</td></tr>`;
+  const head='<table class="odds-table live-odds"><thead><tr><th>人気</th><th>組み合わせ</th><th>票数</th><th>オッズ</th></tr></thead><tbody>';
+  const SHOW=10;
+  let html=head+rows.slice(0,SHOW).map(tr).join('')+'</tbody></table>';
+  if(rows.length>SHOW){
+    html+=`<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">残り${rows.length-SHOW}通りを見る</summary>${head}${rows.slice(SHOW).map((r,i)=>tr(r,i+SHOW)).join('')}</tbody></table></details>`;
+  }
+  html+='<div class="hint">投票のたびに変わります。まだ誰も買っていない組み合わせは、当たれば総額をひとり占めです（1000pt未満切捨て）。</div>';
+  if(el._html===html)return;
+  const wasOpen=!!el.querySelector('details[open]');
+  el.innerHTML=html; el._html=html;
+  if(wasOpen&&el.querySelector('details'))el.querySelector('details').open=true;
+}
 function renderVoteList(){
   renderVoterPick();
+  renderOdds();
   const el=$('voteList');
   $('voteCount').textContent=state.votes.length+'人';
   if(state.votes.length===0){el.innerHTML='<div class="empty">まだ投票がありません</div>';return;}
