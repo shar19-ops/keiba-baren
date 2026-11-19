@@ -333,7 +333,8 @@
       <div id="voteClosedNotice" class="empty" style="display:none">🔒 このレースは締め切られました。新しい投票・投票の変更はできません。</div>
       <div id="voteFormFields">
         <label>名前</label>
-        <input type="text" id="voterName" placeholder="投票する人の名前" autocomplete="off">
+        <select id="voterPick"></select>
+        <input type="text" id="voterName" placeholder="ゲストの名前を入力" autocomplete="off" style="display:none;margin-top:8px">
         <div style="height:12px"></div>
         <label id="comboLabel">馬連（4〜6点）</label>
         <div id="comboArea"></div>
@@ -389,6 +390,7 @@
 <script>
 const LS_FB_URL_KEY = 'baren_fb_url';
 const LS_RACE_ID_KEY = 'baren_current_race_id_v3';
+const LS_MY_VOTES_KEY = 'baren_my_votes_v1';
 const LS_CACHE_PREFIX = 'baren_state_v4_';
 const LS_RACELIST_CACHE_KEY = 'baren_racelist_v4';
 const MAX_COMBO = 6;
@@ -710,6 +712,7 @@ function showOrganizerTabs(unlocked){
       switchTab('vote');
     }
   }
+  renderVoteList();
 }
 function confirmOrganizerPassword(){
   const v=$('organizerPassword').value;
@@ -1274,9 +1277,47 @@ function updateVoteTotal(){
   const{combos}=readCombos();
   $('voteTotal').textContent=(combos.length*state.unitStake).toLocaleString()+' pt';
 }
+/* ---------- 投票者名（出走者から選択 / ゲストは手入力） ---------- */
+const GUEST_PICK='__guest__';
+function myVoteNames(){
+  try{ const m=JSON.parse(localStorage.getItem(LS_MY_VOTES_KEY))||{}; return m[currentRaceId]||[]; }catch(e){ return []; }
+}
+function addMyVoteName(name){
+  try{
+    const m=JSON.parse(localStorage.getItem(LS_MY_VOTES_KEY))||{};
+    const a=m[currentRaceId]||[];
+    if(!a.includes(name))a.push(name);
+    m[currentRaceId]=a;
+    localStorage.setItem(LS_MY_VOTES_KEY,JSON.stringify(m));
+  }catch(e){}
+}
+function renderVoterPick(){
+  const sel=$('voterPick'); if(document.activeElement===sel)return;
+  const prev=sel.value;
+  const voted=new Set(state.votes.map(v=>v.name));
+  let o='<option value="">— 名前を選択 —</option>';
+  state.horses.forEach(h=>{
+    o+=`<option value="${escapeHtml(h.name)}">${escapeHtml(h.name)}${voted.has(h.name)?'（投票済み）':''}</option>`;
+  });
+  o+=`<option value="${GUEST_PICK}">ゲスト（名前を入力）</option>`;
+  sel.innerHTML=o;
+  sel.value=prev;
+  if(sel.value!==prev)sel.value='';
+  $('voterName').style.display=sel.value===GUEST_PICK?'':'none';
+}
+$('voterPick').addEventListener('change',()=>{
+  const guest=$('voterPick').value===GUEST_PICK;
+  $('voterName').style.display=guest?'':'none';
+  if(guest)$('voterName').focus();
+});
+function voterNameValue(){
+  const p=$('voterPick').value;
+  return p===GUEST_PICK?$('voterName').value.trim():p;
+}
+
 $('submitVote').addEventListener('click',async ()=>{
-  const name=$('voterName').value.trim();
-  if(!name){toast('名前を入力してください');return;}
+  const name=voterNameValue();
+  if(!name){toast($('voterPick').value===GUEST_PICK?'ゲストの名前を入力してください':'名前を選択してください');return;}
   // 投票直前に最新の出走馬を読み直し、古い選択肢のまま送らないようにする
   const picked=()=>[...$('comboArea').querySelectorAll('.combo-row select')].map(s=>s.value).join(',');
   const before=picked();
@@ -1293,12 +1334,15 @@ $('submitVote').addEventListener('click',async ()=>{
     toast('出走馬が変更されました。投票内容を選び直してください');return;
   }
   const existed=state.votes.some(v=>v.name===name);
+  if(existed&&!myVoteNames().includes(name)&&!confirm(`${name} さんはすでに投票済みです。上書きしますか？`))return;
   const ok=await withRaceCheck(async()=>{
     if(state.closed)throw new Error('race_closed');
     await fbSet(`votes/${currentRaceId}/${voteKey(name)}`,{name,combos,updatedAt:Date.now()});
   });
   if(ok){
-    $('voterName').value='';
+    addMyVoteName(name);
+    renderVoteList();
+    $('voterPick').value=''; $('voterName').value=''; $('voterName').style.display='none';
     $('comboArea').innerHTML=''; for(let i=0;i<MIN_COMBO;i++) addComboRow();
     toast(existed?'投票を更新しました':'投票しました');
     window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
@@ -1309,17 +1353,26 @@ function renderVoteLock(){
   $('voteFormFields').style.display=state.closed?'none':'';
 }
 function renderVoteList(){
+  renderVoterPick();
   const el=$('voteList');
   $('voteCount').textContent=state.votes.length+'人';
   if(state.votes.length===0){el.innerHTML='<div class="empty">まだ投票がありません</div>';return;}
-  el.innerHTML=state.votes.map(v=>{
+  // 締め切りまでは、幹事以外には他人の買い目を見せない（自分の端末で投票した分は表示）
+  const hideOthers=!state.closed&&!isSetupUnlocked();
+  const mine=new Set(myVoteNames());
+  el.innerHTML=(hideOthers?'<div class="muted" style="margin-bottom:8px">🔒 ほかの人の買い目は締め切り後に表示されます</div>':'')+state.votes.map(v=>{
+    if(hideOthers&&!mine.has(v.name)){
+      return `<div class="vote-item">
+      <div class="top" style="margin-bottom:0"><span class="name">${escapeHtml(v.name)}</span><span class="badge">投票済み</span></div>
+    </div>`;
+    }
     const pairs=v.combos.map(c=>{
       const hit=isHit(c);
       return `<span class="bet-pair${hit?' hit':''}">${comboLabel(c)}</span>`;
     }).join('');
     const stake=(v.combos.length*state.unitStake).toLocaleString();
     return `<div class="vote-item">
-      <div class="top"><span class="name">${escapeHtml(v.name)}</span>
+      <div class="top"><span class="name">${escapeHtml(v.name)}${hideOthers?'<span class="muted">（あなた）</span>':''}</span>
         <span><span class="badge">${v.combos.length}点 / ${stake}pt</span>
         ${isSetupUnlocked()&&!state.closed?`<button class="btn btn-danger btn-sm" data-name="${escapeHtml(v.name)}" style="margin-left:6px">削除</button>`:''}</span>
       </div>
