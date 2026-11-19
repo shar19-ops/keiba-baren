@@ -424,6 +424,7 @@ let raceList = [];
 let pollTimer = null;
 let lastBetType = null;
 let lastUmatanPosKey = null;
+let lastComboOptKey = null;
 let lastExportPayload = null;
 let _pwMode = 'organizer';
 
@@ -1206,8 +1207,26 @@ function renderComboArea(){
   if(area.querySelectorAll('.combo-row').length===0){
     area.innerHTML='';
     for(let i=0;i<MIN_COMBO;i++) addComboRow();
+  }else{
+    refreshComboOptions();
   }
+  lastComboOptKey=comboOptKey();
   updateVoteTotal();
+}
+// 出走馬・枠の変更を投票欄の選択肢に反映（選んでいた馬・枠が残っていれば選択も残す）
+function comboOptKey(){
+  return JSON.stringify([state.gameStyle,state.horses.map(h=>[h.id,h.name,h.waku,h.hande])]);
+}
+function refreshComboOptions(){
+  if(comboOptKey()===lastComboOptKey)return;
+  const isWakuren=state.betType==='wakuren';
+  let dropped=false;
+  $('comboArea').querySelectorAll('.combo-row select').forEach(s=>{
+    const prev=s.value;
+    s.innerHTML=isWakuren?wakuOptions(prev):horseOptions(prev);
+    if(prev!==''&&s.value!==prev)dropped=true;
+  });
+  if(dropped)toast('出走馬が変更されました。投票内容を選び直してください');
 }
 function addComboRow(){
   const rows=$('comboArea').querySelectorAll('.combo-row');
@@ -1258,10 +1277,21 @@ function updateVoteTotal(){
 $('submitVote').addEventListener('click',async ()=>{
   const name=$('voterName').value.trim();
   if(!name){toast('名前を入力してください');return;}
+  // 投票直前に最新の出走馬を読み直し、古い選択肢のまま送らないようにする
+  const picked=()=>[...$('comboArea').querySelectorAll('.combo-row select')].map(s=>s.value).join(',');
+  const before=picked();
+  await refresh(false);
+  if(picked()!==before){toast('出走馬などが変更されました。投票内容を選び直してください');return;}
   const{combos,err}=readCombos();
   if(err){toast(err);return;}
   if(combos.length<MIN_COMBO){toast(`${betTypeLabel()}を${MIN_COMBO}点以上選んでください`);return;}
   if(state.closed){toast('このレースは締め切られています');return;}
+  const valid=state.betType==='wakuren'
+    ? new Set(wakuList().map(w=>String(w.waku)))
+    : new Set(state.horses.map(h=>String(h.id)));
+  if(combos.some(c=>!valid.has(String(c[0]))||!valid.has(String(c[1])))){
+    toast('出走馬が変更されました。投票内容を選び直してください');return;
+  }
   const existed=state.votes.some(v=>v.name===name);
   const ok=await withRaceCheck(async()=>{
     if(state.closed)throw new Error('race_closed');
@@ -1547,6 +1577,8 @@ function renderAll(){
     $('comboArea').innerHTML='';
     renderComboArea();
     toast(betChanged?`投票方式が${betTypeLabel()}に変更されました`:'予想着順が変更されました');
+  }else{
+    renderComboArea();
   }
   lastBetType=state.betType;
   lastUmatanPosKey=posKey;
