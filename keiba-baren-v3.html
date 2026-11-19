@@ -1368,6 +1368,11 @@ function renderOdds(){
   const pot=totalBets*unit;
   $('oddsPot').textContent=`総額 ${pot.toLocaleString()} pt`;
   if(totalBets===0){el.innerHTML='<div class="empty">投票が入るとオッズが表示されます</div>';el._html=null;return;}
+  // 投票した人が少ないうちはオッズから買い目がわかってしまうので出さない（幹事・締め切り後は表示）
+  const ODDS_MIN_VOTERS=4;
+  if(state.votes.length<ODDS_MIN_VOTERS&&!state.closed&&!isSetupUnlocked()){
+    el.innerHTML=`<div class="empty">🔒 あと${ODDS_MIN_VOTERS-state.votes.length}人投票するとオッズが表示されます</div>`;el._html=null;return;
+  }
   const map=new Map();
   state.votes.forEach(v=>v.combos.forEach(c=>{
     const label=comboLabel(c);
